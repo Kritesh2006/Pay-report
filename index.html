@@ -135,10 +135,11 @@
   /* ── Employee section ── */
   .emp-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr 1fr 1fr;
     gap: 14px;
   }
-  @media (max-width: 500px) { .emp-grid { grid-template-columns: 1fr; } }
+  @media (max-width: 640px) { .emp-grid { grid-template-columns: 1fr; } }
+  @media (min-width: 641px) and (max-width: 780px) { .emp-grid { grid-template-columns: 1fr 1fr; } }
 
   .field label {
     display: block;
@@ -188,6 +189,40 @@
     font-size: 11px;
     color: var(--txt3);
     margin-top: 5px;
+  }
+
+  /* ── Pay period toggle ── */
+  .pp-toggle {
+    display: flex;
+    border: 1px solid var(--border);
+    border-radius: var(--rad-sm);
+    overflow: hidden;
+    background: var(--surface2);
+    width: 100%;
+  }
+  .pp-toggle button {
+    flex: 1;
+    padding: 9px 10px;
+    border: none;
+    background: transparent;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--txt2);
+    cursor: pointer;
+    transition: background .15s, color .15s;
+    line-height: 1.3;
+    text-align: center;
+  }
+  .pp-toggle button:first-child { border-right: 1px solid var(--border); }
+  .pp-toggle button.pp-active {
+    background: var(--accent);
+    color: #fff;
+    font-weight: 600;
+  }
+  .pp-toggle button:not(.pp-active):hover {
+    background: var(--accent-lt);
+    color: var(--accent-dk);
   }
 
   /* ── Totals summary ── */
@@ -584,9 +619,16 @@
           <div class="err-msg" id="empErr">Please enter your name before submitting.</div>
         </div>
         <div class="field">
-          <label>Current Pay Period</label>
-          <div class="period-display" id="periodDisplay">Detecting…</div>
-          <div class="period-sub">Auto-detected · updates every month automatically</div>
+          <label>Pay Period Half</label>
+          <div class="pp-toggle">
+            <button id="ppBtn1" class="pp-active" onclick="setPeriod(1)">1st &ndash; 15th</button>
+            <button id="ppBtn2" onclick="setPeriod(2)">16th &ndash; End of Month</button>
+          </div>
+          <div class="period-sub">Auto-detected &middot; tap to switch if submitting late</div>
+        </div>
+        <div class="field">
+          <label>Selected Pay Period</label>
+          <div class="period-display" id="periodDisplay">Detecting&hellip;</div>
         </div>
       </div>
     </div>
@@ -743,36 +785,54 @@
 (function () {
 
   // ─────────────────────────────────────
-  // Pay Period Detection
+  // Constants
   // ─────────────────────────────────────
-  var today    = new Date();
-  var year     = today.getFullYear();
-  var month    = today.getMonth();   // 0-based
-  var day      = today.getDate();
-  var MONTHS   = ['January','February','March','April','May','June',
-                  'July','August','September','October','November','December'];
-  var DAYS     = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-  var DAYS_S   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  var today  = new Date();
+  var year   = today.getFullYear();
+  var month  = today.getMonth();   // 0-based
+  var day    = today.getDate();
 
-  var startDay, endDay;
-  if (day <= 15) {
-    startDay = 1;
-    endDay   = 15;
-  } else {
-    startDay = 16;
-    endDay   = new Date(year, month + 1, 0).getDate(); // real last day of month
+  var MONTHS = ['January','February','March','April','May','June',
+                'July','August','September','October','November','December'];
+  var DAYS   = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  var DAYS_S = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+  var mName  = MONTHS[month];
+
+  // Active period state — driven by toggle, defaulting to today's half
+  var activePeriod = (day <= 15) ? 1 : 2;  // 1 = first half, 2 = second half
+
+  // Derived start/end for the active period
+  var startDay, endDay, label;
+
+  // ─────────────────────────────────────
+  // Compute period bounds from activePeriod
+  // ─────────────────────────────────────
+  function computePeriod() {
+    if (activePeriod === 1) {
+      startDay = 1;
+      endDay   = 15;
+    } else {
+      startDay = 16;
+      endDay   = new Date(year, month + 1, 0).getDate(); // real last day
+    }
+    label = mName + ' ' + startDay + '\u2013' + endDay + ', ' + year;
   }
 
-  var mName = MONTHS[month];
-  var label = mName + ' ' + startDay + '\u2013' + endDay + ', ' + year;
-
-  document.getElementById('hdrPeriod').textContent     = label;
-  document.getElementById('periodDisplay').textContent = label;
-  document.getElementById('tableHeading').textContent  = 'Daily Hours \u2014 ' + label;
+  // ─────────────────────────────────────
+  // Update all period labels in the UI
+  // ─────────────────────────────────────
+  function updateLabels() {
+    document.getElementById('hdrPeriod').textContent     = label;
+    document.getElementById('periodDisplay').textContent = label;
+    document.getElementById('tableHeading').textContent  = 'Daily Hours \u2014 ' + label;
+    // Sync toggle button states
+    document.getElementById('ppBtn1').className = (activePeriod === 1) ? 'pp-active' : '';
+    document.getElementById('ppBtn2').className = (activePeriod === 2) ? 'pp-active' : '';
+  }
 
   // ─────────────────────────────────────
-  // Helpers — defined FIRST so every
-  // caller below can reference them
+  // Helpers
   // ─────────────────────────────────────
   function fmtN(v) {
     var n = parseFloat(v);
@@ -828,22 +888,19 @@
     var hrs   = hrsEl.value;
 
     if (loc === 'Off') {
-      // Off: dim row, disable hours controls
       row.classList.add('row-off');
-      hrsEl.disabled       = true;
-      cusEl.style.display  = 'none';
-      cusEl.disabled       = true;
-      cusEl.value          = '';
+      hrsEl.disabled      = true;
+      cusEl.style.display = 'none';
+      cusEl.disabled      = true;
+      cusEl.value         = '';
     } else {
       row.classList.remove('row-off');
       hrsEl.disabled = false;
       if (hrs === 'custom') {
-        // Show custom input and focus it
         cusEl.style.display = 'inline-block';
         cusEl.disabled      = false;
         cusEl.focus();
       } else {
-        // Hide custom input, clear its value so it doesn't bleed into totals
         cusEl.style.display = 'none';
         cusEl.disabled      = true;
         cusEl.value         = '';
@@ -852,68 +909,91 @@
     recalc();
   }
 
-  // Expose to inline handlers
-  window.onChange = onRowChange;
-
   // ─────────────────────────────────────
-  // Build rows
+  // Build rows for active period
   // ─────────────────────────────────────
-  var tbody = document.getElementById('tsBody');
+  function buildRows() {
+    var tbody = document.getElementById('tsBody');
+    tbody.innerHTML = ''; // clear existing rows
 
-  for (var d = startDay; d <= endDay; d++) {
-    var dt     = new Date(year, month, d);
-    var dowIdx = dt.getDay();
-    var mmdd   = mName.slice(0, 3) + ' ' + d;
+    // Reset totals display immediately
+    document.getElementById('totG1').textContent  = '0';
+    document.getElementById('totG2').textContent  = '0';
+    document.getElementById('totG3').textContent  = '0';
+    document.getElementById('totAll').textContent = '0';
 
-    var tr = document.createElement('tr');
-    tr.id  = 'row-' + d;
+    // Hide summary if it was showing (period changed = fresh start)
+    document.getElementById('summarySection').style.display = 'none';
 
-    // Build inner HTML — note: custom input does NOT use oninput= inline;
-    // we attach the listener properly after appending (avoids scope issues)
-    tr.innerHTML =
-      '<td data-label="Date">' +
-        '<div class="date-main">' + mmdd + '</div>' +
-        '<div class="date-wday">' + DAYS[dowIdx] + '</div>' +
-      '</td>' +
-      '<td data-label="Store">' +
-        '<div class="sel-wrap">' +
-          '<select id="loc-' + d + '" class="loc-select">' +
-            '<option value="G1">G1</option>' +
-            '<option value="G2">G2</option>' +
-            '<option value="G3">G3</option>' +
-            '<option value="Off">Off</option>' +
-          '</select>' +
-        '</div>' +
-      '</td>' +
-      '<td data-label="Hours">' +
-        '<div class="hrs-cell">' +
+    for (var d = startDay; d <= endDay; d++) {
+      var dt     = new Date(year, month, d);
+      var dowIdx = dt.getDay();
+      var mmdd   = mName.slice(0, 3) + ' ' + d;
+
+      var tr = document.createElement('tr');
+      tr.id  = 'row-' + d;
+
+      tr.innerHTML =
+        '<td data-label="Date">' +
+          '<div class="date-main">' + mmdd + '</div>' +
+          '<div class="date-wday">' + DAYS[dowIdx] + '</div>' +
+        '</td>' +
+        '<td data-label="Store">' +
           '<div class="sel-wrap">' +
-            '<select id="hrs-' + d + '" class="hrs-select">' +
-              '<option value="9.5">9.5 hrs</option>' +
-              '<option value="10">10 hrs</option>' +
-              '<option value="custom">Custom\u2026</option>' +
+            '<select id="loc-' + d + '" class="loc-select">' +
+              '<option value="G1">G1</option>' +
+              '<option value="G2">G2</option>' +
+              '<option value="G3">G3</option>' +
+              '<option value="Off">Off</option>' +
             '</select>' +
           '</div>' +
-          '<input type="number" id="cus-' + d + '" class="custom-inp"' +
-            ' min="0" max="24" step="0.5" placeholder="hrs" />' +
-        '</div>' +
-      '</td>' +
-      '<td class="row-hrs has" id="rh-' + d + '" data-label="Hrs">9.5</td>';
+        '</td>' +
+        '<td data-label="Hours">' +
+          '<div class="hrs-cell">' +
+            '<div class="sel-wrap">' +
+              '<select id="hrs-' + d + '" class="hrs-select">' +
+                '<option value="9.5">9.5 hrs</option>' +
+                '<option value="10">10 hrs</option>' +
+                '<option value="custom">Custom\u2026</option>' +
+              '</select>' +
+            '</div>' +
+            '<input type="number" id="cus-' + d + '" class="custom-inp"' +
+              ' min="0" max="24" step="0.5" placeholder="hrs" />' +
+          '</div>' +
+        '</td>' +
+        '<td class="row-hrs has" id="rh-' + d + '" data-label="Hrs">9.5</td>';
 
-    tbody.appendChild(tr);
+      tbody.appendChild(tr);
 
-    // Attach event listeners NOW that elements exist in DOM
-    // Using a closure to capture the correct value of d
-    (function (day) {
-      document.getElementById('loc-' + day).addEventListener('change', function () { onRowChange(day); });
-      document.getElementById('hrs-' + day).addEventListener('change', function () { onRowChange(day); });
-      document.getElementById('cus-' + day).addEventListener('input',  function () { recalc(); });
-      document.getElementById('cus-' + day).addEventListener('change', function () { recalc(); });
-    }(d));
+      // Attach listeners inside closure to capture correct d
+      (function (day) {
+        document.getElementById('loc-' + day).addEventListener('change', function () { onRowChange(day); });
+        document.getElementById('hrs-' + day).addEventListener('change', function () { onRowChange(day); });
+        document.getElementById('cus-' + day).addEventListener('input',  function () { recalc(); });
+        document.getElementById('cus-' + day).addEventListener('change', function () { recalc(); });
+      }(d));
+    }
+
+    recalc();
   }
 
-  // Run initial recalc now that all rows and listeners are in place
-  recalc();
+  // ─────────────────────────────────────
+  // Public: setPeriod — called by toggle buttons
+  // ─────────────────────────────────────
+  window.setPeriod = function (half) {
+    if (half === activePeriod) return; // no-op if already selected
+    activePeriod = half;
+    computePeriod();
+    updateLabels();
+    buildRows();
+  };
+
+  // ─────────────────────────────────────
+  // Initial load
+  // ─────────────────────────────────────
+  computePeriod();
+  updateLabels();
+  buildRows();
 
   // ─────────────────────────────────────
   // Submit
@@ -1030,12 +1110,6 @@
       setTimeout(function () { btn.textContent = 'Copy Text'; }, 2000);
     }
 
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(txt).then(afterCopy).catch(fallback);
-    } else {
-      fallback();
-    }
-
     function fallback() {
       var ta = document.createElement('textarea');
       ta.value = txt;
@@ -1046,6 +1120,12 @@
       try { document.execCommand('copy'); } catch (e) {}
       document.body.removeChild(ta);
       afterCopy();
+    }
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(txt).then(afterCopy).catch(fallback);
+    } else {
+      fallback();
     }
   };
 
