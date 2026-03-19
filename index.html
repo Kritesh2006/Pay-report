@@ -135,11 +135,15 @@
   /* ── Employee section ── */
   .emp-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-columns: 1fr 1fr 1fr 1fr;
     gap: 14px;
   }
-  @media (max-width: 640px) { .emp-grid { grid-template-columns: 1fr; } }
-  @media (min-width: 641px) and (max-width: 780px) { .emp-grid { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 640px)  { .emp-grid { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 400px)  { .emp-grid { grid-template-columns: 1fr; } }
+  /* Name spans 2 cols on wide screens, period-display spans 1 */
+  .emp-name-field  { grid-column: span 2; }
+  @media (max-width: 640px) { .emp-name-field { grid-column: span 2; } }
+  @media (max-width: 400px) { .emp-name-field { grid-column: span 1; } }
 
   .field label {
     display: block;
@@ -191,7 +195,39 @@
     margin-top: 5px;
   }
 
-  /* ── Pay period toggle ── */
+  /* ── Month / Year selects in employee info ── */
+  .field .my-select {
+    width: 100%;
+    padding: 9px 28px 9px 11px;
+    border: 1px solid var(--border);
+    border-radius: var(--rad-sm);
+    font-family: inherit;
+    font-size: 14px;
+    color: var(--txt);
+    background: var(--surface);
+    transition: border-color .15s, box-shadow .15s;
+    appearance: none;
+    -webkit-appearance: none;
+    cursor: pointer;
+  }
+  .field .my-select:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(26,86,219,.12);
+  }
+  .my-sel-wrap {
+    position: relative;
+  }
+  .my-sel-wrap::after {
+    content: '';
+    position: absolute;
+    right: 10px; top: 50%;
+    transform: translateY(-50%);
+    border-left: 3.5px solid transparent;
+    border-right: 3.5px solid transparent;
+    border-top: 4.5px solid var(--txt2);
+    pointer-events: none;
+  }
   .pp-toggle {
     display: flex;
     border: 1px solid var(--border);
@@ -613,23 +649,55 @@
     </div>
     <div class="card-body">
       <div class="emp-grid">
-        <div class="field">
+
+        <!-- Row 1: Name (wide) + Period display -->
+        <div class="field emp-name-field">
           <label for="empName">Your Full Name *</label>
           <input type="text" id="empName" placeholder="e.g. Alex Johnson" autocomplete="off" />
           <div class="err-msg" id="empErr">Please enter your name before submitting.</div>
         </div>
+        <div class="field" style="grid-column:span 2;">
+          <label>Selected Pay Period</label>
+          <div class="period-display" id="periodDisplay">Detecting&hellip;</div>
+        </div>
+
+        <!-- Row 2: Month + Year + Half toggle -->
         <div class="field">
+          <label for="selMonth">Month</label>
+          <div class="my-sel-wrap">
+            <select id="selMonth" class="my-select" onchange="onPeriodChange()">
+              <option value="0">January</option>
+              <option value="1">February</option>
+              <option value="2">March</option>
+              <option value="3">April</option>
+              <option value="4">May</option>
+              <option value="5">June</option>
+              <option value="6">July</option>
+              <option value="7">August</option>
+              <option value="8">September</option>
+              <option value="9">October</option>
+              <option value="10">November</option>
+              <option value="11">December</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label for="selYear">Year</label>
+          <div class="my-sel-wrap">
+            <select id="selYear" class="my-select" onchange="onPeriodChange()">
+              <!-- Populated by JS -->
+            </select>
+          </div>
+        </div>
+        <div class="field" style="grid-column:span 2;">
           <label>Pay Period Half</label>
           <div class="pp-toggle">
             <button id="ppBtn1" class="pp-active" onclick="setPeriod(1)">1st &ndash; 15th</button>
             <button id="ppBtn2" onclick="setPeriod(2)">16th &ndash; End of Month</button>
           </div>
-          <div class="period-sub">Auto-detected &middot; tap to switch if submitting late</div>
+          <div class="period-sub">Change month, year, or half to submit for a different period</div>
         </div>
-        <div class="field">
-          <label>Selected Pay Period</label>
-          <div class="period-display" id="periodDisplay">Detecting&hellip;</div>
-        </div>
+
       </div>
     </div>
   </div>
@@ -785,28 +853,52 @@
 (function () {
 
   // ─────────────────────────────────────
-  // Constants
+  // Today's reference values
   // ─────────────────────────────────────
-  var today  = new Date();
-  var year   = today.getFullYear();
-  var month  = today.getMonth();   // 0-based
-  var day    = today.getDate();
+  var today     = new Date();
+  var todayYear = today.getFullYear();
+  var todayMon  = today.getMonth();   // 0-based
+  var todayDay  = today.getDate();
 
   var MONTHS = ['January','February','March','April','May','June',
                 'July','August','September','October','November','December'];
   var DAYS   = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
   var DAYS_S = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
-  var mName  = MONTHS[month];
+  // ─────────────────────────────────────
+  // Active state — all three controls
+  // ─────────────────────────────────────
+  var selMonth    = todayMon;                          // 0-based
+  var selYear     = todayYear;
+  var activePeriod = (todayDay <= 15) ? 1 : 2;        // 1 or 2
 
-  // Active period state — driven by toggle, defaulting to today's half
-  var activePeriod = (day <= 15) ? 1 : 2;  // 1 = first half, 2 = second half
-
-  // Derived start/end for the active period
+  // Derived
   var startDay, endDay, label;
 
   // ─────────────────────────────────────
-  // Compute period bounds from activePeriod
+  // Populate year dropdown (prev, current, next)
+  // ─────────────────────────────────────
+  function populateYears() {
+    var sel = document.getElementById('selYear');
+    sel.innerHTML = '';
+    var years = [todayYear - 1, todayYear, todayYear + 1];
+    for (var i = 0; i < years.length; i++) {
+      var opt = document.createElement('option');
+      opt.value = years[i];
+      opt.textContent = years[i];
+      if (years[i] === todayYear) opt.selected = true;
+      sel.appendChild(opt);
+    }
+  }
+
+  // Set month dropdown to current month
+  function syncDropdowns() {
+    document.getElementById('selMonth').value = selMonth;
+    document.getElementById('selYear').value  = selYear;
+  }
+
+  // ─────────────────────────────────────
+  // Compute period bounds
   // ─────────────────────────────────────
   function computePeriod() {
     if (activePeriod === 1) {
@@ -814,19 +906,18 @@
       endDay   = 15;
     } else {
       startDay = 16;
-      endDay   = new Date(year, month + 1, 0).getDate(); // real last day
+      endDay   = new Date(selYear, selMonth + 1, 0).getDate(); // real last day
     }
-    label = mName + ' ' + startDay + '\u2013' + endDay + ', ' + year;
+    label = MONTHS[selMonth] + ' ' + startDay + '\u2013' + endDay + ', ' + selYear;
   }
 
   // ─────────────────────────────────────
-  // Update all period labels in the UI
+  // Update all UI labels
   // ─────────────────────────────────────
   function updateLabels() {
     document.getElementById('hdrPeriod').textContent     = label;
     document.getElementById('periodDisplay').textContent = label;
     document.getElementById('tableHeading').textContent  = 'Daily Hours \u2014 ' + label;
-    // Sync toggle button states
     document.getElementById('ppBtn1').className = (activePeriod === 1) ? 'pp-active' : '';
     document.getElementById('ppBtn2').className = (activePeriod === 2) ? 'pp-active' : '';
   }
@@ -914,21 +1005,19 @@
   // ─────────────────────────────────────
   function buildRows() {
     var tbody = document.getElementById('tsBody');
-    tbody.innerHTML = ''; // clear existing rows
+    tbody.innerHTML = '';
 
-    // Reset totals display immediately
     document.getElementById('totG1').textContent  = '0';
     document.getElementById('totG2').textContent  = '0';
     document.getElementById('totG3').textContent  = '0';
     document.getElementById('totAll').textContent = '0';
 
-    // Hide summary if it was showing (period changed = fresh start)
     document.getElementById('summarySection').style.display = 'none';
 
     for (var d = startDay; d <= endDay; d++) {
-      var dt     = new Date(year, month, d);
+      var dt     = new Date(selYear, selMonth, d);
       var dowIdx = dt.getDay();
-      var mmdd   = mName.slice(0, 3) + ' ' + d;
+      var mmdd   = MONTHS[selMonth].slice(0, 3) + ' ' + d;
 
       var tr = document.createElement('tr');
       tr.id  = 'row-' + d;
@@ -965,7 +1054,6 @@
 
       tbody.appendChild(tr);
 
-      // Attach listeners inside closure to capture correct d
       (function (day) {
         document.getElementById('loc-' + day).addEventListener('change', function () { onRowChange(day); });
         document.getElementById('hrs-' + day).addEventListener('change', function () { onRowChange(day); });
@@ -978,22 +1066,39 @@
   }
 
   // ─────────────────────────────────────
-  // Public: setPeriod — called by toggle buttons
+  // Full refresh — called whenever any
+  // of the three controls changes
   // ─────────────────────────────────────
-  window.setPeriod = function (half) {
-    if (half === activePeriod) return; // no-op if already selected
-    activePeriod = half;
+  function refresh() {
     computePeriod();
     updateLabels();
     buildRows();
+  }
+
+  // ─────────────────────────────────────
+  // Public handlers — called by HTML
+  // ─────────────────────────────────────
+
+  // Month or year dropdown changed
+  window.onPeriodChange = function () {
+    selMonth = parseInt(document.getElementById('selMonth').value, 10);
+    selYear  = parseInt(document.getElementById('selYear').value, 10);
+    refresh();
+  };
+
+  // Half toggle button clicked
+  window.setPeriod = function (half) {
+    if (half === activePeriod) return;
+    activePeriod = half;
+    refresh();
   };
 
   // ─────────────────────────────────────
   // Initial load
   // ─────────────────────────────────────
-  computePeriod();
-  updateLabels();
-  buildRows();
+  populateYears();
+  syncDropdowns();
+  refresh();
 
   // ─────────────────────────────────────
   // Submit
@@ -1046,14 +1151,14 @@
     var stBody = document.getElementById('sTableBody');
     stBody.innerHTML = '';
     for (var d = startDay; d <= endDay; d++) {
-      var dt2   = new Date(year, month, d);
+      var dt2   = new Date(selYear, selMonth, d);
       var loc2  = document.getElementById('loc-' + d).value;
       var hrs2  = getRowHours(d);
       var isOff = loc2 === 'Off';
       var tr2   = document.createElement('tr');
       if (isOff) tr2.className = 'srow-off';
       tr2.innerHTML =
-        '<td>' + mName.slice(0, 3) + ' ' + d + ', ' + year + '</td>' +
+        '<td>' + MONTHS[selMonth].slice(0, 3) + ' ' + d + ', ' + selYear + '</td>' +
         '<td>' + DAYS_S[dt2.getDay()] + '</td>' +
         '<td>' + (LOCBADGE[loc2] || loc2) + '</td>' +
         '<td style="text-align:right;font-weight:600;">' +
