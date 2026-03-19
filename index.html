@@ -1,1030 +1,303 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>iFixandRepair — Employee Timesheet</title>
-<style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-  :root {
-    --bg:        #f0f2f5;
-    --surface:   #ffffff;
-    --surface2:  #f8f9fa;
-    --border:    #e0e3e8;
-    --accent:    #1a56db;
-    --accent-dk: #1241ab;
-    --accent-lt: #ebf0fd;
-    --g1c:       #1a56db;
-    --g1bg:      #ebf0fd;
-    --g2c:       #057a55;
-    --g2bg:      #e3f5ee;
-    --g3c:       #b45309;
-    --g3bg:      #fef3c7;
-    --offc:      #6b7280;
-    --offbg:     #f3f4f6;
-    --txt:       #111827;
-    --txt2:      #4b5563;
-    --txt3:      #9ca3af;
-    --danger:    #dc2626;
-    --success:   #059669;
-    --rad:       8px;
-    --rad-sm:    5px;
-    --shadow:    0 1px 3px rgba(0,0,0,0.09);
-    --shadow-md: 0 4px 14px rgba(0,0,0,0.10);
-  }
-
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-    background: var(--bg);
-    color: var(--txt);
-    font-size: 14px;
-    line-height: 1.5;
-    min-height: 100vh;
-  }
-
-  /* ── Header ── */
-  .header {
-    background: var(--accent);
-    color: #fff;
-    padding: 0 20px;
-    box-shadow: 0 2px 8px rgba(26,86,219,.35);
-    position: sticky;
-    top: 0;
-    z-index: 50;
-  }
-  .header-inner {
-    max-width: 860px;
-    margin: 0 auto;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    height: 56px;
-    gap: 12px;
-  }
-  .brand {
-    display: flex;
-    align-items: center;
-    gap: 9px;
-  }
-  .brand-icon {
-    width: 30px; height: 30px;
-    background: rgba(255,255,255,0.2);
-    border-radius: 6px;
-    display: flex; align-items: center; justify-content: center;
-    flex-shrink: 0;
-  }
-  .brand-icon svg { width: 16px; height: 16px; }
-  .brand-name {
-    font-size: 15px;
-    font-weight: 700;
-    letter-spacing: -0.2px;
-  }
-  .brand-name span { opacity: 0.75; font-weight: 400; }
-  .period-chip {
-    font-size: 12px;
-    font-weight: 600;
-    background: rgba(255,255,255,0.18);
-    border: 1px solid rgba(255,255,255,0.25);
-    padding: 4px 11px;
-    border-radius: 20px;
-    white-space: nowrap;
-    letter-spacing: 0.1px;
-  }
-
-  /* ── Page wrapper ── */
-  .page {
-    max-width: 860px;
-    margin: 0 auto;
-    padding: 22px 14px 60px;
-  }
-
-  /* ── Card ── */
-  .card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--rad);
-    box-shadow: var(--shadow);
-    margin-bottom: 14px;
-    overflow: hidden;
-  }
-  .card-head {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 12px 18px;
-    border-bottom: 1px solid var(--border);
-    background: var(--surface2);
-  }
-  .card-head-icon {
-    width: 20px; height: 20px;
-    background: var(--accent-lt);
-    border-radius: 4px;
-    display: flex; align-items: center; justify-content: center;
-    flex-shrink: 0;
-  }
-  .card-head-icon svg { width: 11px; height: 11px; }
-  .card-head h2 {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--txt);
-    letter-spacing: 0.1px;
-  }
-  .card-body { padding: 18px; }
-
-  /* ── Employee section ── */
-  .emp-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 14px;
-  }
-  @media (max-width: 500px) { .emp-grid { grid-template-columns: 1fr; } }
-
-  .field label {
-    display: block;
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.6px;
-    color: var(--txt2);
-    margin-bottom: 5px;
-  }
-  .field input[type="text"] {
-    width: 100%;
-    padding: 9px 11px;
-    border: 1px solid var(--border);
-    border-radius: var(--rad-sm);
-    font-size: 14px;
-    color: var(--txt);
-    font-family: inherit;
-    background: var(--surface);
-    transition: border-color .15s, box-shadow .15s;
-  }
-  .field input[type="text"]:focus {
-    outline: none;
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px rgba(26,86,219,.12);
-  }
-  .field input[type="text"].err { border-color: var(--danger); }
-  .err-msg {
-    font-size: 11px;
-    color: var(--danger);
-    margin-top: 4px;
-    display: none;
-  }
-  .err-msg.on { display: block; }
-
-  .period-display {
-    background: var(--accent-lt);
-    border: 1px solid #c3d4f9;
-    border-radius: var(--rad-sm);
-    padding: 9px 12px;
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--accent-dk);
-    letter-spacing: -0.1px;
-  }
-  .period-sub {
-    font-size: 11px;
-    color: var(--txt3);
-    margin-top: 5px;
-  }
-
-  /* ── Totals summary ── */
-  .totals-row {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 10px;
-  }
-  @media (max-width: 520px) { .totals-row { grid-template-columns: repeat(2, 1fr); } }
-
-  .tot-box {
-    border-radius: var(--rad-sm);
-    padding: 13px 10px;
-    text-align: center;
-    border: 1px solid transparent;
-  }
-  .tot-box.g1  { background: var(--g1bg); border-color: #c3d4f9; }
-  .tot-box.g2  { background: var(--g2bg); border-color: #a7d7c5; }
-  .tot-box.g3  { background: var(--g3bg); border-color: #fcd98a; }
-  .tot-box.all { background: #f0f2f5;      border-color: #d1d5db; }
-
-  .tot-lbl {
-    font-size: 10px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.8px;
-    margin-bottom: 3px;
-  }
-  .g1 .tot-lbl  { color: var(--g1c); }
-  .g2 .tot-lbl  { color: var(--g2c); }
-  .g3 .tot-lbl  { color: var(--g3c); }
-  .all .tot-lbl { color: var(--txt2); }
-
-  .tot-val {
-    font-size: 28px;
-    font-weight: 700;
-    line-height: 1;
-    font-variant-numeric: tabular-nums;
-  }
-  .g1 .tot-val  { color: var(--g1c); }
-  .g2 .tot-val  { color: var(--g2c); }
-  .g3 .tot-val  { color: var(--g3c); }
-  .all .tot-val { color: var(--txt); }
-
-  .tot-unit { font-size: 10px; color: var(--txt3); margin-top: 2px; }
-
-  /* ── Timesheet table ── */
-  .ts-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 13px;
-  }
-  .ts-table thead tr {
-    background: var(--surface2);
-    border-bottom: 2px solid var(--border);
-  }
-  .ts-table th {
-    padding: 8px 10px;
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: var(--txt2);
-    text-align: left;
-    white-space: nowrap;
-  }
-  .ts-table th:last-child { text-align: right; }
-
-  .ts-table tbody tr {
-    border-bottom: 1px solid var(--border);
-    transition: background .1s;
-  }
-  .ts-table tbody tr:last-child { border-bottom: none; }
-  .ts-table tbody tr:hover { background: #fafbfc; }
-  .ts-table tbody tr.row-off { background: var(--offbg); opacity: .7; }
-
-  .ts-table td {
-    padding: 7px 10px;
-    vertical-align: middle;
-  }
-
-  /* Date cell */
-  .date-main { font-weight: 600; font-size: 13px; white-space: nowrap; }
-  .date-wday { font-size: 11px; color: var(--txt3); }
-
-  /* Select / input */
-  select, input[type="number"] {
-    font-family: inherit;
-    font-size: 13px;
-    padding: 6px 8px;
-    border: 1px solid var(--border);
-    border-radius: var(--rad-sm);
-    color: var(--txt);
-    background: var(--surface);
-    transition: border-color .15s, box-shadow .15s;
-    appearance: none;
-    -webkit-appearance: none;
-  }
-  select:focus, input[type="number"]:focus {
-    outline: none;
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px rgba(26,86,219,.10);
-  }
-  .sel-wrap { position: relative; display: inline-block; }
-  .sel-wrap::after {
-    content: '';
-    position: absolute;
-    right: 8px; top: 50%;
-    transform: translateY(-50%);
-    border-left: 3.5px solid transparent;
-    border-right: 3.5px solid transparent;
-    border-top: 4.5px solid var(--txt2);
-    pointer-events: none;
-  }
-  .sel-wrap select { padding-right: 22px; }
-
-  .loc-select  { min-width: 72px; }
-  .hrs-select  { min-width: 82px; }
-  .custom-inp  {
-    width: 68px;
-    display: none;
-    margin-left: 6px;
-  }
-  input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; }
-
-  .hrs-cell { white-space: nowrap; display: flex; align-items: center; }
-
-  /* Row summary badge */
-  .row-hrs {
-    text-align: right;
-    font-weight: 600;
-    font-size: 13px;
-    white-space: nowrap;
-    min-width: 48px;
-  }
-  .row-hrs.has { color: var(--txt); }
-  .row-hrs.off { color: var(--txt3); }
-
-  .loc-badge {
-    display: inline-block;
-    font-size: 10px;
-    font-weight: 700;
-    padding: 2px 6px;
-    border-radius: 3px;
-    letter-spacing: 0.3px;
-    margin-left: 5px;
-    vertical-align: middle;
-  }
-  .badge-g1  { background: var(--g1bg);  color: var(--g1c); }
-  .badge-g2  { background: var(--g2bg);  color: var(--g2c); }
-  .badge-g3  { background: var(--g3bg);  color: var(--g3c); }
-  .badge-off { background: var(--offbg); color: var(--offc); }
-
-  /* Mobile: stack date rows as cards */
-  @media (max-width: 600px) {
-    .ts-table thead { display: none; }
-    .ts-table, .ts-table tbody, .ts-table tr, .ts-table td {
-      display: block; width: 100%;
-    }
-    .ts-table tbody tr {
-      border: 1px solid var(--border);
-      border-radius: var(--rad-sm);
-      margin-bottom: 8px;
-      padding: 10px 12px;
-      background: var(--surface);
-    }
-    .ts-table tbody tr:hover { background: var(--surface); }
-    .ts-table tbody tr.row-off { background: var(--offbg); }
-    .ts-table td { padding: 4px 0; border: none; }
-    .ts-table td::before {
-      content: attr(data-label);
-      font-size: 10px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: var(--txt3);
-      display: block;
-      margin-bottom: 2px;
-    }
-    .row-hrs { text-align: left; }
-    .hrs-cell { flex-wrap: wrap; }
-  }
-
-  /* ── Submit area ── */
-  .submit-area {
-    text-align: center;
-    padding: 22px 18px;
-  }
-  .btn-submit {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    padding: 12px 34px;
-    background: var(--accent);
-    color: #fff;
-    border: none;
-    border-radius: var(--rad-sm);
-    font-family: inherit;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    letter-spacing: 0.1px;
-    transition: background .15s, transform .1s, box-shadow .15s;
-    box-shadow: 0 2px 6px rgba(26,86,219,.35);
-  }
-  .btn-submit:hover { background: var(--accent-dk); box-shadow: 0 4px 12px rgba(26,86,219,.4); }
-  .btn-submit:active { transform: scale(0.98); }
-
-  .btn-secondary {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 10px 20px;
-    background: transparent;
-    color: var(--txt2);
-    border: 1px solid var(--border);
-    border-radius: var(--rad-sm);
-    font-family: inherit;
-    font-size: 13px;
-    font-weight: 500;
-    cursor: pointer;
-    margin-left: 10px;
-    transition: border-color .15s, color .15s;
-  }
-  .btn-secondary:hover { border-color: var(--txt2); color: var(--txt); }
-
-  .submit-note { font-size: 12px; color: var(--txt3); margin-top: 10px; }
-
-  /* ── Summary / Preview ── */
-  #summarySection { display: none; }
-
-  .summary-header {
-    background: var(--success);
-    color: #fff;
-    padding: 16px 20px;
-    border-radius: var(--rad) var(--rad) 0 0;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-  .summary-header h3 { font-size: 15px; font-weight: 700; }
-  .summary-header .chk-icon {
-    width: 26px; height: 26px;
-    background: rgba(255,255,255,.22);
-    border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    flex-shrink: 0;
-  }
-
-  .summary-meta {
-    padding: 14px 20px;
-    background: var(--surface2);
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    flex-wrap: wrap;
-    gap: 20px;
-  }
-  .smeta-item label {
-    font-size: 10px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: var(--txt3);
-    display: block;
-    margin-bottom: 2px;
-  }
-  .smeta-item span { font-size: 14px; font-weight: 600; color: var(--txt); }
-
-  .summary-totals {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 8px;
-    padding: 14px 20px;
-    border-bottom: 1px solid var(--border);
-  }
-  @media (max-width: 480px) { .summary-totals { grid-template-columns: repeat(2,1fr); } }
-
-  .sum-tot-box {
-    border-radius: var(--rad-sm);
-    padding: 10px 8px;
-    text-align: center;
-    border: 1px solid transparent;
-  }
-  .sum-tot-box.g1  { background: var(--g1bg); border-color: #c3d4f9; }
-  .sum-tot-box.g2  { background: var(--g2bg); border-color: #a7d7c5; }
-  .sum-tot-box.g3  { background: var(--g3bg); border-color: #fcd98a; }
-  .sum-tot-box.all { background: #f0f2f5; border-color: #d1d5db; }
-  .sum-tot-lbl { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.7px; margin-bottom: 2px; }
-  .g1 .sum-tot-lbl  { color: var(--g1c); }
-  .g2 .sum-tot-lbl  { color: var(--g2c); }
-  .g3 .sum-tot-lbl  { color: var(--g3c); }
-  .all .sum-tot-lbl { color: var(--txt2); }
-  .sum-tot-val { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
-  .g1 .sum-tot-val  { color: var(--g1c); }
-  .g2 .sum-tot-val  { color: var(--g2c); }
-  .g3 .sum-tot-val  { color: var(--g3c); }
-  .all .sum-tot-val { color: var(--txt); }
-  .sum-tot-unit { font-size: 10px; color: var(--txt3); }
-
-  .summary-table-wrap { padding: 0 20px 18px; }
-  .summary-table-title {
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: var(--txt3);
-    padding: 14px 0 8px;
-  }
-  .summary-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 13px;
-  }
-  .summary-table th {
-    padding: 7px 10px;
-    background: var(--surface2);
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.4px;
-    color: var(--txt2);
-    text-align: left;
-    border-bottom: 2px solid var(--border);
-  }
-  .summary-table th:last-child { text-align: right; }
-  .summary-table td {
-    padding: 6px 10px;
-    border-bottom: 1px solid var(--border);
-    vertical-align: middle;
-  }
-  .summary-table tr:last-child td { border-bottom: none; }
-  .summary-table tr.srow-off { opacity: .55; }
-
-  .summary-actions {
-    padding: 14px 20px;
-    background: var(--surface2);
-    border-top: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
-  }
-  .sa-note { font-size: 12px; color: var(--txt3); flex: 1; min-width: 180px; }
-
-  /* ── Print ── */
-  @media print {
-    .header, .card:not(#summaryCard), #submitCard, .btn-secondary, .btn-submit, .summary-actions { display: none !important; }
-    body { background: white; }
-    #summarySection { display: block !important; }
-    #summaryCard { box-shadow: none; border: 1px solid #ccc; }
-    .page { padding: 0; }
-    .summary-header { background: #1a56db !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  }
-</style>
-</head>
-<body>
-
-<!-- ═══════ HEADER ═══════ -->
-<header class="header">
-  <div class="header-inner">
-    <div class="brand">
-      <div class="brand-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
-        </svg>
-      </div>
-      <div class="brand-name">iFix<span>andRepair</span></div>
-    </div>
-    <div class="period-chip" id="hdrPeriod">Loading…</div>
-  </div>
-</header>
-
-<!-- ═══════ PAGE ═══════ -->
-<div class="page">
-
-  <!-- Employee Info -->
-  <div class="card">
-    <div class="card-head">
-      <div class="card-head-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-      </div>
-      <h2>Employee Information</h2>
-    </div>
-    <div class="card-body">
-      <div class="emp-grid">
-        <div class="field">
-          <label for="empName">Your Full Name *</label>
-          <input type="text" id="empName" placeholder="e.g. Alex Johnson" autocomplete="off" />
-          <div class="err-msg" id="empErr">Please enter your name before submitting.</div>
-        </div>
-        <div class="field">
-          <label>Current Pay Period</label>
-          <div class="period-display" id="periodDisplay">Detecting…</div>
-          <div class="period-sub">Auto-detected · updates every month automatically</div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Live Totals -->
-  <div class="card">
-    <div class="card-head">
-      <div class="card-head-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-      </div>
-      <h2>Live Hours Summary</h2>
-    </div>
-    <div class="card-body">
-      <div class="totals-row">
-        <div class="tot-box g1">
-          <div class="tot-lbl">G1 Store</div>
-          <div class="tot-val" id="totG1">0</div>
-          <div class="tot-unit">hours</div>
-        </div>
-        <div class="tot-box g2">
-          <div class="tot-lbl">G2 Store</div>
-          <div class="tot-val" id="totG2">0</div>
-          <div class="tot-unit">hours</div>
-        </div>
-        <div class="tot-box g3">
-          <div class="tot-lbl">G3 Store</div>
-          <div class="tot-val" id="totG3">0</div>
-          <div class="tot-unit">hours</div>
-        </div>
-        <div class="tot-box all">
-          <div class="tot-lbl">Total Hours</div>
-          <div class="tot-val" id="totAll">0</div>
-          <div class="tot-unit">hours</div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Timesheet Table -->
-  <div class="card">
-    <div class="card-head">
-      <div class="card-head-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-      </div>
-      <h2 id="tableHeading">Daily Hours — Pay Period</h2>
-    </div>
-    <div style="overflow-x:auto;">
-      <table class="ts-table">
-        <thead>
-          <tr>
-            <th>Date</th>
-            <th>Store / Location</th>
-            <th>Hours</th>
-            <th style="text-align:right;">Hrs</th>
-          </tr>
-        </thead>
-        <tbody id="tsBody"></tbody>
-      </table>
-    </div>
-  </div>
-
-  <!-- Submit -->
-  <div class="card" id="submitCard">
-    <div class="submit-area">
-      <button class="btn-submit" id="submitBtn" onclick="doSubmit()">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-        Submit Timesheet
-      </button>
-      <button class="btn-secondary" onclick="window.print()">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-        Print
-      </button>
-      <div class="submit-note">
-        Fill in all your hours, then click Submit. A printable summary will appear below.
-      </div>
-    </div>
-  </div>
-
-  <!-- Summary (shown after submit) -->
-  <div id="summarySection">
-    <div class="card" id="summaryCard">
-      <div class="summary-header">
-        <div class="chk-icon">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-        </div>
-        <div>
-          <h3>Timesheet Ready</h3>
-          <div style="font-size:12px;opacity:.85;margin-top:1px;">Review your summary below. Use Print or copy the details to send to your manager.</div>
-        </div>
-      </div>
-
-      <div class="summary-meta">
-        <div class="smeta-item"><label>Employee</label><span id="sEmp">—</span></div>
-        <div class="smeta-item"><label>Pay Period</label><span id="sPeriod">—</span></div>
-        <div class="smeta-item"><label>Submitted</label><span id="sDate">—</span></div>
-      </div>
-
-      <div class="summary-totals">
-        <div class="sum-tot-box g1">
-          <div class="sum-tot-lbl">G1</div>
-          <div class="sum-tot-val" id="sG1">0</div>
-          <div class="sum-tot-unit">hours</div>
-        </div>
-        <div class="sum-tot-box g2">
-          <div class="sum-tot-lbl">G2</div>
-          <div class="sum-tot-val" id="sG2">0</div>
-          <div class="sum-tot-unit">hours</div>
-        </div>
-        <div class="sum-tot-box g3">
-          <div class="sum-tot-lbl">G3</div>
-          <div class="sum-tot-val" id="sG3">0</div>
-          <div class="sum-tot-unit">hours</div>
-        </div>
-        <div class="sum-tot-box all">
-          <div class="sum-tot-lbl">Total</div>
-          <div class="sum-tot-val" id="sAll">0</div>
-          <div class="sum-tot-unit">hours</div>
-        </div>
-      </div>
-
-      <div class="summary-table-wrap">
-        <div class="summary-table-title">Full Daily Breakdown</div>
-        <table class="summary-table">
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Day</th>
-              <th>Location</th>
-              <th style="text-align:right;">Hours</th>
-            </tr>
-          </thead>
-          <tbody id="sTableBody"></tbody>
-        </table>
-      </div>
-
-      <div class="summary-actions">
-        <div class="sa-note">✅ Your timesheet summary is ready. Print this page or share the details with your manager.</div>
-        <button class="btn-secondary" onclick="window.print()">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-          Print Summary
-        </button>
-        <button class="btn-secondary" onclick="copyText()">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-          <span id="copyBtnTxt">Copy Text</span>
-        </button>
-      </div>
-    </div>
-  </div>
-
-</div><!-- /page -->
-
 <script>
-// ─────────────────────────────────────
-// Pay Period Detection
-// ─────────────────────────────────────
 (function () {
-  var today     = new Date();
-  var year      = today.getFullYear();
-  var month     = today.getMonth();          // 0-based
-  var day       = today.getDate();
-  var MONTHS    = ['January','February','March','April','May','June',
-                   'July','August','September','October','November','December'];
-  var DAYS      = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-  var DAYS_S    = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = today.getMonth();
+  const day = today.getDate();
 
-  var startDay, endDay;
+  const MONTHS = [
+    'January','February','March','April','May','June',
+    'July','August','September','October','November','December'
+  ];
+  const DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const DAYS_S = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+  let startDay, endDay;
   if (day <= 15) {
     startDay = 1;
-    endDay   = 15;
+    endDay = 15;
   } else {
     startDay = 16;
-    endDay   = new Date(year, month + 1, 0).getDate(); // real last day
+    endDay = new Date(year, month + 1, 0).getDate();
   }
 
-  var mName  = MONTHS[month];
-  var label  = mName + ' ' + startDay + '\u2013' + endDay + ', ' + year;
+  const monthName = MONTHS[month];
+  const label = `${monthName} ${startDay}–${endDay}, ${year}`;
 
-  document.getElementById('hdrPeriod').textContent     = label;
+  document.getElementById('hdrPeriod').textContent = label;
   document.getElementById('periodDisplay').textContent = label;
-  document.getElementById('tableHeading').textContent  = 'Daily Hours \u2014 ' + label;
+  document.getElementById('tableHeading').textContent = `Daily Hours — ${label}`;
 
-  // ─────────────────────────────────────
-  // Build rows
-  // ─────────────────────────────────────
-  var tbody = document.getElementById('tsBody');
+  const tbody = document.getElementById('tsBody');
 
-  for (var d = startDay; d <= endDay; d++) {
-    var dt      = new Date(year, month, d);
-    var dowIdx  = dt.getDay();
-    var dateStr = mName + ' ' + d + ', ' + year;
-    var dowFull = DAYS[dowIdx];
-    var dowShrt = DAYS_S[dowIdx];
-    var mmdd    = mName.slice(0,3) + ' ' + d;
+  function fmtN(v) {
+    const num = Number(v) || 0;
+    return Number.isInteger(num) ? String(num) : num.toFixed(1);
+  }
 
-    var tr = document.createElement('tr');
-    tr.id  = 'row-' + d;
+  function getRowHours(d) {
+    const locEl = document.getElementById(`loc-${d}`);
+    const hrsEl = document.getElementById(`hrs-${d}`);
+    const cusEl = document.getElementById(`cus-${d}`);
 
-    tr.innerHTML =
-      '<td data-label="Date">' +
-        '<div class="date-main">' + mmdd + '</div>' +
-        '<div class="date-wday">' + dowFull + '</div>' +
-      '</td>' +
-      '<td data-label="Store">' +
-        '<div class="sel-wrap">' +
-          '<select id="loc-' + d + '" onchange="onChange(' + d + ')" class="loc-select">' +
-            '<option value="G1">G1</option>' +
-            '<option value="G2">G2</option>' +
-            '<option value="G3">G3</option>' +
-            '<option value="Off">Off</option>' +
-          '</select>' +
-        '</div>' +
-      '</td>' +
-      '<td data-label="Hours">' +
-        '<div class="hrs-cell">' +
-          '<div class="sel-wrap">' +
-            '<select id="hrs-' + d + '" onchange="onChange(' + d + ')" class="hrs-select">' +
-              '<option value="9.5">9.5 hrs</option>' +
-              '<option value="10">10 hrs</option>' +
-              '<option value="custom">Custom\u2026</option>' +
-            '</select>' +
-          '</div>' +
-          '<input type="number" id="cus-' + d + '" class="custom-inp" ' +
-            'min="0" max="24" step="0.5" placeholder="hrs" oninput="recalc()" />' +
-        '</div>' +
-      '</td>' +
-      '<td class="row-hrs has" id="rh-' + d + '" data-label="Hrs">9.5</td>';
+    if (!locEl || !hrsEl || !cusEl) return 0;
+
+    const loc = locEl.value;
+    if (loc === 'Off') return 0;
+
+    const hrsVal = hrsEl.value;
+
+    if (hrsVal === 'custom') {
+      const customVal = parseFloat(cusEl.value);
+      return Number.isNaN(customVal) ? 0 : customVal;
+    }
+
+    const normalVal = parseFloat(hrsVal);
+    return Number.isNaN(normalVal) ? 0 : normalVal;
+  }
+
+  function updateRowState(d) {
+    const row = document.getElementById(`row-${d}`);
+    const locEl = document.getElementById(`loc-${d}`);
+    const hrsEl = document.getElementById(`hrs-${d}`);
+    const cusEl = document.getElementById(`cus-${d}`);
+    const rowHrs = document.getElementById(`rh-${d}`);
+
+    const loc = locEl.value;
+    const hrsVal = hrsEl.value;
+
+    if (loc === 'Off') {
+      row.classList.add('row-off');
+      hrsEl.disabled = true;
+      cusEl.style.display = 'none';
+      cusEl.disabled = true;
+      rowHrs.textContent = '—';
+      rowHrs.className = 'row-hrs off';
+      return;
+    }
+
+    row.classList.remove('row-off');
+    hrsEl.disabled = false;
+
+    if (hrsVal === 'custom') {
+      cusEl.style.display = 'inline-block';
+      cusEl.disabled = false;
+    } else {
+      cusEl.style.display = 'none';
+      cusEl.disabled = true;
+    }
+
+    const hrs = getRowHours(d);
+    rowHrs.textContent = fmtN(hrs);
+    rowHrs.className = hrs > 0 ? 'row-hrs has' : 'row-hrs off';
+  }
+
+  function recalc() {
+    let g1 = 0;
+    let g2 = 0;
+    let g3 = 0;
+
+    for (let d = startDay; d <= endDay; d++) {
+      updateRowState(d);
+
+      const loc = document.getElementById(`loc-${d}`).value;
+      const hrs = getRowHours(d);
+
+      if (loc === 'G1') g1 += hrs;
+      if (loc === 'G2') g2 += hrs;
+      if (loc === 'G3') g3 += hrs;
+    }
+
+    document.getElementById('totG1').textContent = fmtN(g1);
+    document.getElementById('totG2').textContent = fmtN(g2);
+    document.getElementById('totG3').textContent = fmtN(g3);
+    document.getElementById('totAll').textContent = fmtN(g1 + g2 + g3);
+  }
+
+  for (let d = startDay; d <= endDay; d++) {
+    const dt = new Date(year, month, d);
+    const dowFull = DAYS[dt.getDay()];
+    const mmdd = `${monthName.slice(0, 3)} ${d}`;
+
+    const tr = document.createElement('tr');
+    tr.id = `row-${d}`;
+
+    tr.innerHTML = `
+      <td data-label="Date">
+        <div class="date-main">${mmdd}</div>
+        <div class="date-wday">${dowFull}</div>
+      </td>
+      <td data-label="Store">
+        <div class="sel-wrap">
+          <select id="loc-${d}" class="loc-select">
+            <option value="Off" selected>Off</option>
+            <option value="G1">G1</option>
+            <option value="G2">G2</option>
+            <option value="G3">G3</option>
+          </select>
+        </div>
+      </td>
+      <td data-label="Hours">
+        <div class="hrs-cell">
+          <div class="sel-wrap">
+            <select id="hrs-${d}" class="hrs-select">
+              <option value="9.5">9.5 hrs</option>
+              <option value="10">10 hrs</option>
+              <option value="custom">Custom</option>
+            </select>
+          </div>
+          <input
+            type="number"
+            id="cus-${d}"
+            class="custom-inp"
+            min="0"
+            max="24"
+            step="0.5"
+            placeholder="hrs"
+          />
+        </div>
+      </td>
+      <td class="row-hrs off" id="rh-${d}" data-label="Hrs">—</td>
+    `;
 
     tbody.appendChild(tr);
   }
 
+  for (let d = startDay; d <= endDay; d++) {
+    const locEl = document.getElementById(`loc-${d}`);
+    const hrsEl = document.getElementById(`hrs-${d}`);
+    const cusEl = document.getElementById(`cus-${d}`);
+
+    locEl.addEventListener('change', recalc);
+    hrsEl.addEventListener('change', recalc);
+    cusEl.addEventListener('input', recalc);
+  }
+
   recalc();
 
-  // ─────────────────────────────────────
-  // onChange handler
-  // ─────────────────────────────────────
-  window.onChange = function (d) {
-    var locSel = document.getElementById('loc-' + d);
-    var hrsSel = document.getElementById('hrs-' + d);
-    var cusInp = document.getElementById('cus-' + d);
-    var row    = document.getElementById('row-' + d);
-
-    var loc = locSel.value;
-    var hrs = hrsSel.value;
-
-    // Toggle off state
-    if (loc === 'Off') {
-      row.classList.add('row-off');
-      hrsSel.disabled = true;
-      cusInp.style.display = 'none';
-      cusInp.disabled = true;
-    } else {
-      row.classList.remove('row-off');
-      hrsSel.disabled = false;
-      // Custom toggle
-      if (hrs === 'custom') {
-        cusInp.style.display = 'inline-block';
-        cusInp.disabled = false;
-      } else {
-        cusInp.style.display = 'none';
-        cusInp.disabled = true;
-      }
-    }
-
-    recalc();
-  };
-
-  // ─────────────────────────────────────
-  // getRowHours
-  // ─────────────────────────────────────
-  function getRowHours(d) {
-    var loc = document.getElementById('loc-' + d).value;
-    if (loc === 'Off') return 0;
-    var v = document.getElementById('hrs-' + d).value;
-    if (v === 'custom') {
-      var cv = parseFloat(document.getElementById('cus-' + d).value);
-      return isNaN(cv) ? 0 : cv;
-    }
-    return parseFloat(v);
-  }
-
-  // ─────────────────────────────────────
-  // recalc
-  // ─────────────────────────────────────
-  window.recalc = function () {
-    var g1 = 0, g2 = 0, g3 = 0;
-
-    for (var d = startDay; d <= endDay; d++) {
-      var hrs  = getRowHours(d);
-      var loc  = document.getElementById('loc-' + d).value;
-      var cell = document.getElementById('rh-' + d);
-
-      if (loc === 'Off') {
-        cell.textContent = '\u2014';
-        cell.className   = 'row-hrs off';
-      } else {
-        cell.textContent = fmtN(hrs);
-        cell.className   = 'row-hrs has';
-        if (loc === 'G1') g1 += hrs;
-        if (loc === 'G2') g2 += hrs;
-        if (loc === 'G3') g3 += hrs;
-      }
-    }
-
-    document.getElementById('totG1').textContent  = fmtN(g1);
-    document.getElementById('totG2').textContent  = fmtN(g2);
-    document.getElementById('totG3').textContent  = fmtN(g3);
-    document.getElementById('totAll').textContent = fmtN(g1 + g2 + g3);
-  };
-
-  function fmtN(v) {
-    return (v % 1 === 0) ? String(v) : v.toFixed(1);
-  }
-
-  // ─────────────────────────────────────
-  // Submit
-  // ─────────────────────────────────────
   window.doSubmit = function () {
-    var nameEl = document.getElementById('empName');
-    var name   = nameEl.value.trim();
+    const nameEl = document.getElementById('empName');
+    const name = nameEl.value.trim();
 
-    // Validate name
     if (!name) {
       nameEl.classList.add('err');
       document.getElementById('empErr').classList.add('on');
       nameEl.focus();
-      nameEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
     }
+
     nameEl.classList.remove('err');
     document.getElementById('empErr').classList.remove('on');
 
-    // Validate at least one worked day
-    var total = parseFloat(document.getElementById('totAll').textContent) || 0;
+    const total = parseFloat(document.getElementById('totAll').textContent) || 0;
     if (total === 0) {
       alert('Please enter hours for at least one day before submitting.');
       return;
     }
 
-    // Build summary
-    var g1  = document.getElementById('totG1').textContent;
-    var g2  = document.getElementById('totG2').textContent;
-    var g3  = document.getElementById('totG3').textContent;
-    var all = document.getElementById('totAll').textContent;
-
-    document.getElementById('sEmp').textContent    = name;
+    document.getElementById('sEmp').textContent = name;
     document.getElementById('sPeriod').textContent = label;
-    document.getElementById('sDate').textContent   =
-      new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric',
-        hour: 'numeric', minute: '2-digit' });
+    document.getElementById('sDate').textContent =
+      new Date().toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit'
+      });
 
-    document.getElementById('sG1').textContent  = g1;
-    document.getElementById('sG2').textContent  = g2;
-    document.getElementById('sG3').textContent  = g3;
-    document.getElementById('sAll').textContent = all;
+    document.getElementById('sG1').textContent = document.getElementById('totG1').textContent;
+    document.getElementById('sG2').textContent = document.getElementById('totG2').textContent;
+    document.getElementById('sG3').textContent = document.getElementById('totG3').textContent;
+    document.getElementById('sAll').textContent = document.getElementById('totAll').textContent;
 
-    // Build summary table
-    var LOCBADGE = {
-      G1:  '<span class="loc-badge badge-g1">G1</span>',
-      G2:  '<span class="loc-badge badge-g2">G2</span>',
-      G3:  '<span class="loc-badge badge-g3">G3</span>',
+    const LOCBADGE = {
+      G1: '<span class="loc-badge badge-g1">G1</span>',
+      G2: '<span class="loc-badge badge-g2">G2</span>',
+      G3: '<span class="loc-badge badge-g3">G3</span>',
       Off: '<span class="loc-badge badge-off">Off</span>'
     };
 
-    var stBody = document.getElementById('sTableBody');
+    const stBody = document.getElementById('sTableBody');
     stBody.innerHTML = '';
-    for (var d = startDay; d <= endDay; d++) {
-      var dt2    = new Date(year, month, d);
-      var loc2   = document.getElementById('loc-' + d).value;
-      var hrs2   = getRowHours(d);
-      var isOff  = loc2 === 'Off';
-      var tr2    = document.createElement('tr');
-      if (isOff) tr2.className = 'srow-off';
-      tr2.innerHTML =
-        '<td>' + mName.slice(0,3) + ' ' + d + ', ' + year + '</td>' +
-        '<td>' + DAYS_S[dt2.getDay()] + '</td>' +
-        '<td>' + (LOCBADGE[loc2] || loc2) + '</td>' +
-        '<td style="text-align:right;font-weight:600;">' + (isOff ? '\u2014' : fmtN(hrs2) + ' hrs') + '</td>';
-      stBody.appendChild(tr2);
+
+    for (let d = startDay; d <= endDay; d++) {
+      const dt = new Date(year, month, d);
+      const loc = document.getElementById(`loc-${d}`).value;
+      const hrs = getRowHours(d);
+      const isOff = loc === 'Off';
+
+      const tr = document.createElement('tr');
+      if (isOff) tr.className = 'srow-off';
+
+      tr.innerHTML = `
+        <td>${monthName.slice(0, 3)} ${d}, ${year}</td>
+        <td>${DAYS_S[dt.getDay()]}</td>
+        <td>${LOCBADGE[loc] || loc}</td>
+        <td style="text-align:right;font-weight:600;">${isOff ? '—' : `${fmtN(hrs)} hrs`}</td>
+      `;
+
+      stBody.appendChild(tr);
     }
 
-    // Show summary
-    var sec = document.getElementById('summarySection');
+    const sec = document.getElementById('summarySection');
     sec.style.display = 'block';
     sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
-  // ─────────────────────────────────────
-  // Copy text
-  // ─────────────────────────────────────
   window.copyText = function () {
-    var name    = document.getElementById('sEmp').textContent;
-    var period  = document.getElementById('sPeriod').textContent;
-    var g1v     = document.getElementById('sG1').textContent;
-    var g2v     = document.getElementById('sG2').textContent;
-    var g3v     = document.getElementById('sG3').textContent;
-    var allv    = document.getElementById('sAll').textContent;
+    const name = document.getElementById('sEmp').textContent;
+    const period = document.getElementById('sPeriod').textContent;
+    const g1v = document.getElementById('sG1').textContent;
+    const g2v = document.getElementById('sG2').textContent;
+    const g3v = document.getElementById('sG3').textContent;
+    const allv = document.getElementById('sAll').textContent;
 
-    var lines = [
-      'iFixandRepair \u2014 Employee Timesheet',
+    const lines = [
+      'iFixandRepair — Employee Timesheet',
       '========================================',
-      'Employee:   ' + name,
-      'Pay Period: ' + period,
+      `Employee:   ${name}`,
+      `Pay Period: ${period}`,
       '',
-      'G1 Total:   ' + g1v + ' hrs',
-      'G2 Total:   ' + g2v + ' hrs',
-      'G3 Total:   ' + g3v + ' hrs',
-      'TOTAL:      ' + allv + ' hrs',
+      `G1 Total:   ${g1v} hrs`,
+      `G2 Total:   ${g2v} hrs`,
+      `G3 Total:   ${g3v} hrs`,
+      `TOTAL:      ${allv} hrs`,
       '',
       'Daily Breakdown:',
       '----------------'
     ];
 
-    var rows = document.getElementById('sTableBody').querySelectorAll('tr');
-    rows.forEach(function (r) {
-      var cells = r.querySelectorAll('td');
-      var loc   = cells[2] ? cells[2].textContent.trim() : '';
-      var hrs   = cells[3] ? cells[3].textContent.trim() : '';
-      lines.push(cells[0].textContent + '  ' + cells[1].textContent + '  |  ' + loc + '  |  ' + hrs);
+    const rows = document.querySelectorAll('#sTableBody tr');
+    rows.forEach((r) => {
+      const cells = r.querySelectorAll('td');
+      const date = cells[0]?.textContent.trim() || '';
+      const dayTxt = cells[1]?.textContent.trim() || '';
+      const loc = cells[2]?.textContent.trim() || '';
+      const hrs = cells[3]?.textContent.trim() || '';
+      lines.push(`${date}  ${dayTxt}  |  ${loc}  |  ${hrs}`);
     });
 
-    var txt = lines.join('\n');
-    navigator.clipboard.writeText(txt).then(function () {
-      var btn = document.getElementById('copyBtnTxt');
+    const txt = lines.join('\n');
+
+    navigator.clipboard.writeText(txt).then(() => {
+      const btn = document.getElementById('copyBtnTxt');
       btn.textContent = 'Copied!';
-      setTimeout(function () { btn.textContent = 'Copy Text'; }, 2000);
-    }).catch(function () {
-      // Fallback for browsers without clipboard API
-      var ta = document.createElement('textarea');
+      setTimeout(() => { btn.textContent = 'Copy Text'; }, 2000);
+    }).catch(() => {
+      const ta = document.createElement('textarea');
       ta.value = txt;
       ta.style.position = 'fixed';
-      ta.style.opacity  = '0';
+      ta.style.opacity = '0';
       document.body.appendChild(ta);
       ta.select();
       document.execCommand('copy');
       document.body.removeChild(ta);
-      var btn2 = document.getElementById('copyBtnTxt');
-      btn2.textContent = 'Copied!';
-      setTimeout(function () { btn2.textContent = 'Copy Text'; }, 2000);
+
+      const btn = document.getElementById('copyBtnTxt');
+      btn.textContent = 'Copied!';
+      setTimeout(() => { btn.textContent = 'Copy Text'; }, 2000);
     });
   };
-
 })();
 </script>
-</body>
-</html>
