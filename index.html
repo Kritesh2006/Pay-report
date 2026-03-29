@@ -1730,120 +1730,119 @@
      Handles: login, logout, session persistence, auth state
 ════════════════════════════════════════════════════════ -->
 <script type="module">
+  // ── 1. Firebase imports from CDN ─────────────────────────────
   import { initializeApp }
     from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
-  import {
-    getAuth,
-    signInWithEmailAndPassword,
-    signOut,
-    onAuthStateChanged
-  } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
-  import {
-    getFirestore,
-    collection,
-    addDoc,
-    serverTimestamp
-  } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+  import { getAuth, signInWithEmailAndPassword,
+           signOut, onAuthStateChanged }
+    from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 
+  // ── 2. Firebase config ────────────────────────────────────────
   const firebaseConfig = {
-    apiKey: "AIzaSyB2KJT_n-8lvOVwyGRMvFrz2XUnT2_9bXs",
-    authDomain: "ifixandrepairhours.firebaseapp.com",
-    projectId: "ifixandrepairhours",
-    storageBucket: "ifixandrepairhours.firebasestorage.app",
+    apiKey:            "AIzaSyB2KJT_n-8lvOVwyGRMvFrz2XUnT2_9bXs",
+    authDomain:        "ifixandrepairhours.firebaseapp.com",
+    projectId:         "ifixandrepairhours",
+    storageBucket:     "ifixandrepairhours.firebasestorage.app",
     messagingSenderId: "269559785993",
-    appId: "1:269559785993:web:9177be710a228e3bf4e6d8"
+    appId:             "1:269559785993:web:9177be710a228e3bf4e6d8"
   };
 
-  const app = initializeApp(firebaseConfig);
+  // ── 3. Initialize ─────────────────────────────────────────────
+  const app  = initializeApp(firebaseConfig);
   const auth = getAuth(app);
-  const db = getFirestore(app);
 
-  const authOverlay = document.getElementById('authOverlay');
-  const loginScreen = document.getElementById('loginScreen');
-  const appContent  = document.getElementById('appContent');
-  const loginEmail  = document.getElementById('loginEmail');
-  const loginPass   = document.getElementById('loginPassword');
-  const loginBtn    = document.getElementById('loginBtn');
-  const loginError  = document.getElementById('loginError');
-  const logoutBtn   = document.getElementById('logoutBtn');
-  const userChip    = document.getElementById('userChip');
-  const submitBtn   = document.getElementById('submitBtn');
+  // ── 4. DOM refs ───────────────────────────────────────────────
+  const authOverlay  = document.getElementById('authOverlay');
+  const loginScreen  = document.getElementById('loginScreen');
+  const appContent   = document.getElementById('appContent');
+  const loginEmail   = document.getElementById('loginEmail');
+  const loginPass    = document.getElementById('loginPassword');
+  const loginBtn     = document.getElementById('loginBtn');
+  const loginError   = document.getElementById('loginError');
+  const logoutBtn    = document.getElementById('logoutBtn');
+  const userChip     = document.getElementById('userChip');
 
-  let currentUser = null;
-  let saveInProgress = false;
+  // ── 5. Auth state listener ────────────────────────────────────
+  // Runs once on load (checks for existing session) then on every
+  // login / logout event. This is what keeps the user logged in
+  // after a page refresh.
+  onAuthStateChanged(auth, (user) => {
+    // Hide the loading overlay regardless of auth state
+    authOverlay.style.display = 'none';
 
-  function showLoginError(message) {
-    loginError.textContent = message;
-    loginError.classList.add('visible');
-  }
+    if (user) {
+      // ── LOGGED IN ──────────────────────────────────────────
+      console.log('✅ Logged in — UID:', user.uid, '| Email:', user.email);
 
-  function clearLoginError() {
+      // Show the timesheet, hide login screen
+      loginScreen.classList.remove('visible');
+      appContent.style.display = 'block';
+
+      // Show the user's email in the header chip
+      userChip.textContent = user.email;
+
+      // Pre-fill the employee name field with the part before @
+      const nameField = document.getElementById('empName');
+      if (nameField && !nameField.value) {
+        nameField.value = user.email.split('@')[0];
+      }
+
+    } else {
+      // ── NOT LOGGED IN ──────────────────────────────────────
+      console.log('🔒 No user session — showing login screen');
+
+      appContent.style.display = 'none';
+      loginScreen.classList.add('visible');
+    }
+  });
+
+  // ── 6. Login handler ──────────────────────────────────────────
+  async function handleLogin() {
+    const email    = loginEmail.value.trim();
+    const password = loginPass.value;
+
+    // Clear previous error
     loginError.textContent = '';
     loginError.classList.remove('visible');
     loginEmail.classList.remove('err');
     loginPass.classList.remove('err');
-  }
 
-  onAuthStateChanged(auth, (user) => {
-    authOverlay.style.display = 'none';
-
-    if (user) {
-      currentUser = user;
-      console.log('Logged in UID:', user.uid, 'Email:', user.email);
-
-      loginScreen.classList.remove('visible');
-      appContent.style.display = 'block';
-      userChip.textContent = user.email || '';
-
-      const nameField = document.getElementById('empName');
-      if (nameField && !nameField.value && user.email) {
-        nameField.value = user.email.split('@')[0];
-      }
-    } else {
-      currentUser = null;
-      appContent.style.display = 'none';
-      loginScreen.classList.add('visible');
-      userChip.textContent = '';
-    }
-  });
-
-  async function handleLogin() {
-    const email = loginEmail.value.trim();
-    const password = loginPass.value;
-
-    clearLoginError();
-
+    // Basic validation
     if (!email) {
       loginEmail.classList.add('err');
       showLoginError('Please enter your email address.');
       return;
     }
-
     if (!password) {
       loginPass.classList.add('err');
       showLoginError('Please enter your password.');
       return;
     }
 
-    loginBtn.disabled = true;
-    loginBtn.textContent = 'Signing in...';
+    // Disable button while signing in
+    loginBtn.disabled    = true;
+    loginBtn.textContent = 'Signing in…';
 
     try {
+      // Firebase Auth — email/password sign in
       await signInWithEmailAndPassword(auth, email, password);
+      // onAuthStateChanged above handles the UI update automatically
+
     } catch (err) {
       console.error('Login error:', err.code, err.message);
 
+      // Map Firebase error codes to friendly messages
       const errorMessages = {
-        'auth/user-not-found': 'No account found with this email.',
-        'auth/wrong-password': 'Incorrect password. Please try again.',
-        'auth/invalid-email': 'Please enter a valid email address.',
-        'auth/too-many-requests': 'Too many attempts. Please wait and try again.',
-        'auth/user-disabled': 'This account has been disabled.',
+        'auth/user-not-found':     'No account found with this email.',
+        'auth/wrong-password':     'Incorrect password. Please try again.',
+        'auth/invalid-email':      'Please enter a valid email address.',
+        'auth/too-many-requests':  'Too many attempts. Please wait and try again.',
+        'auth/user-disabled':      'This account has been disabled.',
         'auth/invalid-credential': 'Invalid email or password.',
-        'auth/network-request-failed': 'Network error. Check your connection.'
+        'auth/network-request-failed': 'Network error. Check your connection.',
       };
-
       showLoginError(errorMessages[err.code] || 'Sign in failed. Please try again.');
+
     } finally {
       loginBtn.disabled = false;
       loginBtn.innerHTML = `
@@ -1852,157 +1851,38 @@
           <polyline points="10 17 15 12 10 7"/>
           <line x1="15" y1="12" x2="3" y2="12"/>
         </svg>
-        Sign In
-      `;
+        Sign In`;
     }
   }
 
+  function showLoginError(msg) {
+    loginError.textContent = msg;
+    loginError.classList.add('visible');
+  }
+
+  // ── 7. Logout handler ─────────────────────────────────────────
   async function handleLogout() {
     try {
       await signOut(auth);
+      console.log('👋 Signed out');
+      // onAuthStateChanged will fire and show the login screen
     } catch (err) {
       console.error('Logout error:', err);
-      alert('Sign out failed. Please try again.');
     }
   }
 
-  function collectTimesheetData() {
-    const rows = Array.from(document.querySelectorAll('#tsBody tr'));
-
-    const entries = rows.map((row) => {
-      const key = row.id.replace('row-', '');
-      const locSelect = document.getElementById(`loc-${key}`);
-      const hrsSelect = document.getElementById(`hrs-${key}`);
-      const customHrs = document.getElementById(`cus-${key}`);
-      const customLoc = document.getElementById(`cloc-${key}`);
-
-      const rawLocation = locSelect ? locSelect.value : '';
-      const finalLocation =
-        rawLocation === 'Custom'
-          ? ((customLoc?.value || '').trim() || 'Custom')
-          : rawLocation;
-
-      let hours = 0;
-      if (rawLocation !== 'Off') {
-        if (hrsSelect?.value === 'custom') {
-          hours = parseFloat(customHrs?.value || '0') || 0;
-        } else {
-          hours = parseFloat(hrsSelect?.value || '0') || 0;
-        }
-      }
-
-      const dateMain = row.querySelector('.date-main')?.textContent?.trim() || '';
-      const dateWday = row.querySelector('.date-wday')?.textContent?.trim() || '';
-
-      return {
-        rowKey: key,
-        dateLabel: dateMain,
-        weekday: dateWday,
-        rawLocation,
-        finalLocation,
-        customLocation: rawLocation === 'Custom' ? ((customLoc?.value || '').trim()) : '',
-        hours
-      };
-    });
-
-    return {
-      employeeName: document.getElementById('empName')?.value?.trim() || '',
-      periodLabel: document.getElementById('periodDisplay')?.textContent?.trim() || '',
-      useCustomRange: document.getElementById('useCustomRange')?.checked || false,
-      customStartDate: document.getElementById('customStartDate')?.value || '',
-      customEndDate: document.getElementById('customEndDate')?.value || '',
-      totals: {
-        g1: parseFloat(document.getElementById('totG1')?.textContent || '0') || 0,
-        g2: parseFloat(document.getElementById('totG2')?.textContent || '0') || 0,
-        g3: parseFloat(document.getElementById('totG3')?.textContent || '0') || 0,
-        all: parseFloat(document.getElementById('totAll')?.textContent || '0') || 0
-      },
-      entries
-    };
-  }
-
-  async function saveTimesheetToFirestore() {
-    if (!currentUser) {
-      throw new Error('No logged-in user found.');
-    }
-
-    const payload = collectTimesheetData();
-
-    if (!payload.employeeName) {
-      throw new Error('Employee name is missing.');
-    }
-
-    if (!payload.totals.all || payload.totals.all <= 0) {
-      throw new Error('No hours to save.');
-    }
-
-    const docData = {
-      uid: currentUser.uid,
-      userEmail: currentUser.email || '',
-      employeeName: payload.employeeName,
-      selectedDateRange: payload.periodLabel,
-      useCustomRange: payload.useCustomRange,
-      customStartDate: payload.customStartDate,
-      customEndDate: payload.customEndDate,
-      totals: payload.totals,
-      entries: payload.entries,
-      submittedAt: serverTimestamp()
-    };
-
-    const docRef = await addDoc(collection(db, 'timesheets'), docData);
-    console.log('Timesheet saved:', docRef.id, docData);
-    return docRef.id;
-  }
-
-  const originalDoSubmit = window.doSubmit;
-
-  window.doSubmit = async function () {
-    if (typeof originalDoSubmit === 'function') {
-      originalDoSubmit();
-    }
-
-    const summarySection = document.getElementById('summarySection');
-    const summaryVisible =
-      summarySection &&
-      summarySection.style.display !== 'none';
-
-    if (!summaryVisible) return;
-    if (saveInProgress) return;
-
-    try {
-      saveInProgress = true;
-      if (submitBtn) {
-        submitBtn.disabled = true;
-        submitBtn.textContent = 'Saving...';
-      }
-
-      await saveTimesheetToFirestore();
-      alert('Timesheet submitted and saved successfully.');
-    } catch (err) {
-      console.error('Firestore save failed:', err);
-      alert('Timesheet summary was created, but saving to database failed. Check Firestore setup and try again.');
-    } finally {
-      saveInProgress = false;
-      if (submitBtn) {
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = `
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="20 6 9 17 4 12"></polyline>
-          </svg>
-          Submit Timesheet
-        `;
-      }
-    }
-  };
-
+  // ── 8. Event listeners ───────────────────────────────────────
   loginBtn.addEventListener('click', handleLogin);
   logoutBtn.addEventListener('click', handleLogout);
 
+  // Allow pressing Enter in either field to trigger login
   loginEmail.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') handleLogin();
+    if (e.key === 'Enter') loginPass.focus();
   });
-
   loginPass.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') handleLogin();
   });
 </script>
+
+</body>
+</html>
