@@ -608,6 +608,94 @@
   }
   .sa-note { font-size: 12px; color: var(--txt3); flex: 1; min-width: 180px; }
 
+  /* ── Custom Date Range ── */
+  .custom-range-section {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px dashed var(--border);
+  }
+  .custom-range-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    user-select: none;
+    margin-bottom: 0;
+  }
+  .custom-range-toggle input[type="checkbox"] {
+    width: 15px;
+    height: 15px;
+    accent-color: var(--accent);
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .custom-range-toggle span {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--txt2);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .custom-range-fields {
+    display: none;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-top: 12px;
+  }
+  .custom-range-fields.visible { display: grid; }
+  @media (max-width: 420px) { .custom-range-fields { grid-template-columns: 1fr; } }
+
+  .field input[type="date"] {
+    width: 100%;
+    padding: 9px 11px;
+    border: 1px solid var(--border);
+    border-radius: var(--rad-sm);
+    font-size: 14px;
+    color: var(--txt);
+    font-family: inherit;
+    background: var(--surface);
+    transition: border-color .15s, box-shadow .15s;
+    appearance: auto;
+    -webkit-appearance: auto;
+    cursor: pointer;
+  }
+  .field input[type="date"]:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(26,86,219,.12);
+  }
+  .field input[type="date"].err { border-color: var(--danger); }
+  .date-range-err {
+    font-size: 11px;
+    color: var(--danger);
+    margin-top: 5px;
+    display: none;
+  }
+  .date-range-err.on { display: block; }
+
+  /* ── Custom location text input inside table rows ── */
+  .custom-loc-inp {
+    display: none;
+    width: 90px;
+    margin-left: 5px;
+    padding: 5px 7px;
+    border: 1px solid var(--border);
+    border-radius: var(--rad-sm);
+    font-family: inherit;
+    font-size: 12px;
+    color: var(--txt);
+    background: var(--surface);
+    transition: border-color .15s, box-shadow .15s;
+    appearance: auto !important;
+    -webkit-appearance: auto !important;
+  }
+  .custom-loc-inp:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(26,86,219,.10);
+  }
+  .loc-cell { display: flex; align-items: center; }
+
   /* ── Print ── */
   @media print {
     .header, .card:not(#summaryCard), #submitCard, .btn-secondary, .btn-submit, .summary-actions { display: none !important; }
@@ -698,6 +786,25 @@
           <div class="period-sub">Change month, year, or half to submit for a different period</div>
         </div>
 
+      </div>
+
+      <!-- Custom Date Range (additional option) -->
+      <div class="custom-range-section">
+        <label class="custom-range-toggle">
+          <input type="checkbox" id="useCustomRange" onchange="onCustomRangeToggle()" />
+          <span>Use Custom Date Range Instead</span>
+        </label>
+        <div class="custom-range-fields" id="customRangeFields">
+          <div class="field">
+            <label for="customStartDate">Start Date</label>
+            <input type="date" id="customStartDate" onchange="onCustomRangeChange()" />
+          </div>
+          <div class="field">
+            <label for="customEndDate">End Date</label>
+            <input type="date" id="customEndDate" onchange="onCustomRangeChange()" />
+            <div class="date-range-err" id="dateRangeErr">End date cannot be before start date.</div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -857,7 +964,7 @@
   // ─────────────────────────────────────
   var today     = new Date();
   var todayYear = today.getFullYear();
-  var todayMon  = today.getMonth();   // 0-based
+  var todayMon  = today.getMonth();
   var todayDay  = today.getDate();
 
   var MONTHS = ['January','February','March','April','May','June',
@@ -866,17 +973,26 @@
   var DAYS_S = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
   // ─────────────────────────────────────
-  // Active state — all three controls
+  // Active state
   // ─────────────────────────────────────
-  var selMonth    = todayMon;                          // 0-based
-  var selYear     = todayYear;
-  var activePeriod = (todayDay <= 15) ? 1 : 2;        // 1 or 2
+  var selMonth     = todayMon;
+  var selYear      = todayYear;
+  var activePeriod = (todayDay <= 15) ? 1 : 2;
 
-  // Derived
+  // Custom date range state
+  // useCustomRange = true means rows are driven by customStart/customEnd
+  var useCustomRange = false;
+  var customStart    = null;  // Date object
+  var customEnd      = null;  // Date object
+
+  // Derived — used by buildRows, recalc, submit
+  // In custom range mode these hold absolute Date objects;
+  // in normal mode they're computed from selMonth/selYear/activePeriod
   var startDay, endDay, label;
+  // In custom range mode we iterate differently — see buildRows
 
   // ─────────────────────────────────────
-  // Populate year dropdown (prev, current, next)
+  // Populate year dropdown
   // ─────────────────────────────────────
   function populateYears() {
     var sel = document.getElementById('selYear');
@@ -891,14 +1007,13 @@
     }
   }
 
-  // Set month dropdown to current month
   function syncDropdowns() {
     document.getElementById('selMonth').value = selMonth;
     document.getElementById('selYear').value  = selYear;
   }
 
   // ─────────────────────────────────────
-  // Compute period bounds
+  // Compute period bounds (normal mode)
   // ─────────────────────────────────────
   function computePeriod() {
     if (activePeriod === 1) {
@@ -906,7 +1021,7 @@
       endDay   = 15;
     } else {
       startDay = 16;
-      endDay   = new Date(selYear, selMonth + 1, 0).getDate(); // real last day
+      endDay   = new Date(selYear, selMonth + 1, 0).getDate();
     }
     label = MONTHS[selMonth] + ' ' + startDay + '\u2013' + endDay + ', ' + selYear;
   }
@@ -931,10 +1046,32 @@
     return (n % 1 === 0) ? String(n) : n.toFixed(1);
   }
 
-  function getRowHours(d) {
-    var locEl = document.getElementById('loc-' + d);
-    var hrsEl = document.getElementById('hrs-' + d);
-    var cusEl = document.getElementById('cus-' + d);
+  // Returns a YYYY-MM-DD string from a Date (local time)
+  function toYMD(dt) {
+    var y = dt.getFullYear();
+    var m = String(dt.getMonth() + 1).padStart(2, '0');
+    var d = String(dt.getDate()).padStart(2, '0');
+    return y + '-' + m + '-' + d;
+  }
+
+  // Returns the effective location string for a row.
+  // If the loc select is "Custom", reads the custom-loc text input.
+  function getRowLocation(key) {
+    var locEl = document.getElementById('loc-' + key);
+    if (!locEl) return '';
+    var val = locEl.value;
+    if (val === 'Custom') {
+      var custEl = document.getElementById('cloc-' + key);
+      var typed  = custEl ? custEl.value.trim() : '';
+      return typed || 'Custom';
+    }
+    return val;
+  }
+
+  function getRowHours(key) {
+    var locEl = document.getElementById('loc-' + key);
+    var hrsEl = document.getElementById('hrs-' + key);
+    var cusEl = document.getElementById('cus-' + key);
     if (!locEl || !hrsEl) return 0;
     if (locEl.value === 'Off') return 0;
     if (hrsEl.value === 'custom') {
@@ -945,23 +1082,32 @@
     return isNaN(v) ? 0 : v;
   }
 
+  // ─────────────────────────────────────
+  // recalc — live totals
+  // Works for both normal mode (numeric keys) and
+  // custom range mode (YYYY-MM-DD string keys)
+  // ─────────────────────────────────────
   function recalc() {
     var g1 = 0, g2 = 0, g3 = 0;
-    for (var d = startDay; d <= endDay; d++) {
-      var locEl = document.getElementById('loc-' + d);
-      var cell  = document.getElementById('rh-' + d);
+    var keys = getRowKeys();
+    for (var i = 0; i < keys.length; i++) {
+      var key   = keys[i];
+      var locEl = document.getElementById('loc-' + key);
+      var cell  = document.getElementById('rh-' + key);
       if (!locEl || !cell) continue;
-      var loc = locEl.value;
-      var hrs = getRowHours(d);
+      var loc = locEl.value;  // raw dropdown value for Off check
+      var hrs = getRowHours(key);
       if (loc === 'Off') {
         cell.textContent = '\u2014';
         cell.className   = 'row-hrs off';
       } else {
         cell.textContent = fmtN(hrs);
         cell.className   = 'row-hrs has';
-        if (loc === 'G1') g1 += hrs;
-        if (loc === 'G2') g2 += hrs;
-        if (loc === 'G3') g3 += hrs;
+        var effectiveLoc = getRowLocation(key);
+        if (effectiveLoc === 'G1') g1 += hrs;
+        else if (effectiveLoc === 'G2') g2 += hrs;
+        else if (effectiveLoc === 'G3') g3 += hrs;
+        // Custom locations don't add to G1/G2/G3 totals
       }
     }
     document.getElementById('totG1').textContent  = fmtN(g1);
@@ -970,14 +1116,36 @@
     document.getElementById('totAll').textContent = fmtN(g1 + g2 + g3);
   }
 
-  function onRowChange(d) {
-    var locEl = document.getElementById('loc-' + d);
-    var hrsEl = document.getElementById('hrs-' + d);
-    var cusEl = document.getElementById('cus-' + d);
-    var row   = document.getElementById('row-' + d);
-    var loc   = locEl.value;
-    var hrs   = hrsEl.value;
+  // Returns the list of row keys currently in the table
+  // Normal mode: numbers [startDay .. endDay]
+  // Custom range mode: YYYY-MM-DD strings
+  function getRowKeys() {
+    var keys = [];
+    if (useCustomRange && customStart && customEnd) {
+      var cur = new Date(customStart);
+      while (cur <= customEnd) {
+        keys.push(toYMD(cur));
+        cur.setDate(cur.getDate() + 1);
+      }
+    } else {
+      for (var d = startDay; d <= endDay; d++) keys.push(d);
+    }
+    return keys;
+  }
 
+  // ─────────────────────────────────────
+  // onRowChange — handles Off/Custom hours/Custom loc
+  // ─────────────────────────────────────
+  function onRowChange(key) {
+    var locEl  = document.getElementById('loc-' + key);
+    var hrsEl  = document.getElementById('hrs-' + key);
+    var cusEl  = document.getElementById('cus-' + key);
+    var clocEl = document.getElementById('cloc-' + key);
+    var row    = document.getElementById('row-' + key);
+    var loc    = locEl.value;
+    var hrs    = hrsEl.value;
+
+    // Handle Off state
     if (loc === 'Off') {
       row.classList.add('row-off');
       hrsEl.disabled      = true;
@@ -997,77 +1165,104 @@
         cusEl.value         = '';
       }
     }
-    recalc();
-  }
 
-  // ─────────────────────────────────────
-  // Build rows for active period
-  // ─────────────────────────────────────
-  function buildRows() {
-    var tbody = document.getElementById('tsBody');
-    tbody.innerHTML = '';
-
-    document.getElementById('totG1').textContent  = '0';
-    document.getElementById('totG2').textContent  = '0';
-    document.getElementById('totG3').textContent  = '0';
-    document.getElementById('totAll').textContent = '0';
-
-    document.getElementById('summarySection').style.display = 'none';
-
-    for (var d = startDay; d <= endDay; d++) {
-      var dt     = new Date(selYear, selMonth, d);
-      var dowIdx = dt.getDay();
-      var mmdd   = MONTHS[selMonth].slice(0, 3) + ' ' + d;
-
-      var tr = document.createElement('tr');
-      tr.id  = 'row-' + d;
-
-      tr.innerHTML =
-        '<td data-label="Date">' +
-          '<div class="date-main">' + mmdd + '</div>' +
-          '<div class="date-wday">' + DAYS[dowIdx] + '</div>' +
-        '</td>' +
-        '<td data-label="Store">' +
-          '<div class="sel-wrap">' +
-            '<select id="loc-' + d + '" class="loc-select">' +
-              '<option value="G1">G1</option>' +
-              '<option value="G2">G2</option>' +
-              '<option value="G3">G3</option>' +
-              '<option value="Off">Off</option>' +
-            '</select>' +
-          '</div>' +
-        '</td>' +
-        '<td data-label="Hours">' +
-          '<div class="hrs-cell">' +
-            '<div class="sel-wrap">' +
-              '<select id="hrs-' + d + '" class="hrs-select">' +
-                '<option value="9.5">9.5 hrs</option>' +
-                '<option value="10">10 hrs</option>' +
-                '<option value="custom">Custom\u2026</option>' +
-              '</select>' +
-            '</div>' +
-            '<input type="number" id="cus-' + d + '" class="custom-inp"' +
-              ' min="0" max="24" step="0.5" placeholder="hrs" />' +
-          '</div>' +
-        '</td>' +
-        '<td class="row-hrs has" id="rh-' + d + '" data-label="Hrs">9.5</td>';
-
-      tbody.appendChild(tr);
-
-      (function (day) {
-        document.getElementById('loc-' + day).addEventListener('change', function () { onRowChange(day); });
-        document.getElementById('hrs-' + day).addEventListener('change', function () { onRowChange(day); });
-        document.getElementById('cus-' + day).addEventListener('input',  function () { recalc(); });
-        document.getElementById('cus-' + day).addEventListener('change', function () { recalc(); });
-      }(d));
+    // Handle Custom location
+    if (clocEl) {
+      clocEl.style.display = (loc === 'Custom') ? 'inline-block' : 'none';
+      if (loc === 'Custom') clocEl.focus();
     }
 
     recalc();
   }
 
   // ─────────────────────────────────────
-  // Full refresh — called whenever any
-  // of the three controls changes
+  // buildRows — generates table rows
+  // Handles both normal and custom range modes
+  // ─────────────────────────────────────
+  function buildRows() {
+    var tbody = document.getElementById('tsBody');
+    tbody.innerHTML = '';
+
+    ['totG1','totG2','totG3','totAll'].forEach(function(id) {
+      document.getElementById(id).textContent = '0';
+    });
+    document.getElementById('summarySection').style.display = 'none';
+
+    var keys = getRowKeys();
+
+    for (var i = 0; i < keys.length; i++) {
+      var key = keys[i];
+      var dt, mmdd, dowFull;
+
+      if (useCustomRange) {
+        // key is YYYY-MM-DD
+        var parts = key.split('-');
+        dt      = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+        var mon = MONTHS[dt.getMonth()].slice(0, 3);
+        mmdd    = mon + ' ' + dt.getDate();
+        dowFull = DAYS[dt.getDay()];
+      } else {
+        // key is day number
+        dt      = new Date(selYear, selMonth, key);
+        mmdd    = MONTHS[selMonth].slice(0, 3) + ' ' + key;
+        dowFull = DAYS[dt.getDay()];
+      }
+
+      var tr = document.createElement('tr');
+      tr.id  = 'row-' + key;
+
+      tr.innerHTML =
+        '<td data-label="Date">' +
+          '<div class="date-main">' + mmdd + '</div>' +
+          '<div class="date-wday">' + dowFull + '</div>' +
+        '</td>' +
+        '<td data-label="Store">' +
+          '<div class="loc-cell">' +
+            '<div class="sel-wrap">' +
+              '<select id="loc-' + key + '" class="loc-select">' +
+                '<option value="G1">G1</option>' +
+                '<option value="G2">G2</option>' +
+                '<option value="G3">G3</option>' +
+                '<option value="Off">Off</option>' +
+                '<option value="Custom">Custom</option>' +
+              '</select>' +
+            '</div>' +
+            '<input type="text" id="cloc-' + key + '" class="custom-loc-inp"' +
+              ' placeholder="Location name" maxlength="40" />' +
+          '</div>' +
+        '</td>' +
+        '<td data-label="Hours">' +
+          '<div class="hrs-cell">' +
+            '<div class="sel-wrap">' +
+              '<select id="hrs-' + key + '" class="hrs-select">' +
+                '<option value="9.5">9.5 hrs</option>' +
+                '<option value="10">10 hrs</option>' +
+                '<option value="custom">Custom\u2026</option>' +
+              '</select>' +
+            '</div>' +
+            '<input type="number" id="cus-' + key + '" class="custom-inp"' +
+              ' min="0" max="24" step="0.5" placeholder="hrs" />' +
+          '</div>' +
+        '</td>' +
+        '<td class="row-hrs has" id="rh-' + key + '" data-label="Hrs">9.5</td>';
+
+      tbody.appendChild(tr);
+
+      // Attach listeners — closure captures key
+      (function(k) {
+        document.getElementById('loc-' + k).addEventListener('change',  function() { onRowChange(k); });
+        document.getElementById('hrs-' + k).addEventListener('change',  function() { onRowChange(k); });
+        document.getElementById('cus-' + k).addEventListener('input',   function() { recalc(); });
+        document.getElementById('cus-' + k).addEventListener('change',  function() { recalc(); });
+        document.getElementById('cloc-' + k).addEventListener('input',  function() { recalc(); });
+      }(key));
+    }
+
+    recalc();
+  }
+
+  // ─────────────────────────────────────
+  // Full refresh
   // ─────────────────────────────────────
   function refresh() {
     computePeriod();
@@ -1076,21 +1271,83 @@
   }
 
   // ─────────────────────────────────────
-  // Public handlers — called by HTML
+  // Public handlers — normal mode
   // ─────────────────────────────────────
-
-  // Month or year dropdown changed
   window.onPeriodChange = function () {
     selMonth = parseInt(document.getElementById('selMonth').value, 10);
     selYear  = parseInt(document.getElementById('selYear').value, 10);
     refresh();
   };
 
-  // Half toggle button clicked
   window.setPeriod = function (half) {
     if (half === activePeriod) return;
     activePeriod = half;
     refresh();
+  };
+
+  // ─────────────────────────────────────
+  // Custom date range handlers
+  // ─────────────────────────────────────
+  window.onCustomRangeToggle = function () {
+    useCustomRange = document.getElementById('useCustomRange').checked;
+
+    // Grey out / enable the normal selectors
+    var normalEls = ['selMonth', 'selYear', 'ppBtn1', 'ppBtn2'];
+    normalEls.forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) el.disabled = useCustomRange;
+    });
+
+    // Show/hide date fields
+    var fields = document.getElementById('customRangeFields');
+    if (useCustomRange) {
+      fields.classList.add('visible');
+      // Default start/end to today
+      var todayStr = toYMD(today);
+      if (!document.getElementById('customStartDate').value)
+        document.getElementById('customStartDate').value = todayStr;
+      if (!document.getElementById('customEndDate').value)
+        document.getElementById('customEndDate').value = todayStr;
+      window.onCustomRangeChange();
+    } else {
+      fields.classList.remove('visible');
+      customStart = null;
+      customEnd   = null;
+      document.getElementById('dateRangeErr').classList.remove('on');
+      refresh();  // revert to normal mode
+    }
+  };
+
+  window.onCustomRangeChange = function () {
+    var startVal = document.getElementById('customStartDate').value;
+    var endVal   = document.getElementById('customEndDate').value;
+    var errEl    = document.getElementById('dateRangeErr');
+
+    if (!startVal || !endVal) return;
+
+    var parts1 = startVal.split('-');
+    var parts2 = endVal.split('-');
+    var s = new Date(parseInt(parts1[0]), parseInt(parts1[1]) - 1, parseInt(parts1[2]));
+    var e = new Date(parseInt(parts2[0]), parseInt(parts2[1]) - 1, parseInt(parts2[2]));
+
+    if (e < s) {
+      errEl.classList.add('on');
+      return;
+    }
+    errEl.classList.remove('on');
+
+    customStart = s;
+    customEnd   = e;
+
+    // Build label for custom range
+    var opts = { month: 'short', day: 'numeric', year: 'numeric' };
+    label = s.toLocaleDateString('en-US', opts) + ' \u2013 ' + e.toLocaleDateString('en-US', opts);
+
+    document.getElementById('hdrPeriod').textContent     = label;
+    document.getElementById('periodDisplay').textContent = label;
+    document.getElementById('tableHeading').textContent  = 'Daily Hours \u2014 ' + label;
+
+    buildRows();
   };
 
   // ─────────────────────────────────────
@@ -1141,26 +1398,49 @@
     document.getElementById('sG3').textContent  = g3;
     document.getElementById('sAll').textContent = all;
 
-    var LOCBADGE = {
-      G1:  '<span class="loc-badge badge-g1">G1</span>',
-      G2:  '<span class="loc-badge badge-g2">G2</span>',
-      G3:  '<span class="loc-badge badge-g3">G3</span>',
-      Off: '<span class="loc-badge badge-off">Off</span>'
-    };
-
     var stBody = document.getElementById('sTableBody');
     stBody.innerHTML = '';
-    for (var d = startDay; d <= endDay; d++) {
-      var dt2   = new Date(selYear, selMonth, d);
-      var loc2  = document.getElementById('loc-' + d).value;
-      var hrs2  = getRowHours(d);
-      var isOff = loc2 === 'Off';
-      var tr2   = document.createElement('tr');
+
+    var keys = getRowKeys();
+    for (var i = 0; i < keys.length; i++) {
+      var key   = keys[i];
+      var rawLoc = document.getElementById('loc-' + key).value;
+      var effLoc = getRowLocation(key);
+      var hrs2   = getRowHours(key);
+      var isOff  = rawLoc === 'Off';
+
+      var dt2, dateStr, dayStr;
+      if (useCustomRange) {
+        var parts = key.split('-');
+        dt2     = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+        dateStr = MONTHS[dt2.getMonth()].slice(0,3) + ' ' + dt2.getDate() + ', ' + dt2.getFullYear();
+        dayStr  = DAYS_S[dt2.getDay()];
+      } else {
+        dt2     = new Date(selYear, selMonth, key);
+        dateStr = MONTHS[selMonth].slice(0, 3) + ' ' + key + ', ' + selYear;
+        dayStr  = DAYS_S[dt2.getDay()];
+      }
+
+      // Build location badge — custom locations shown as plain text badge
+      var locBadgeHtml;
+      if (isOff) {
+        locBadgeHtml = '<span class="loc-badge badge-off">Off</span>';
+      } else if (effLoc === 'G1') {
+        locBadgeHtml = '<span class="loc-badge badge-g1">G1</span>';
+      } else if (effLoc === 'G2') {
+        locBadgeHtml = '<span class="loc-badge badge-g2">G2</span>';
+      } else if (effLoc === 'G3') {
+        locBadgeHtml = '<span class="loc-badge badge-g3">G3</span>';
+      } else {
+        locBadgeHtml = '<span class="loc-badge" style="background:var(--surface2);color:var(--txt2);border:1px solid var(--border);">' + effLoc + '</span>';
+      }
+
+      var tr2 = document.createElement('tr');
       if (isOff) tr2.className = 'srow-off';
       tr2.innerHTML =
-        '<td>' + MONTHS[selMonth].slice(0, 3) + ' ' + d + ', ' + selYear + '</td>' +
-        '<td>' + DAYS_S[dt2.getDay()] + '</td>' +
-        '<td>' + (LOCBADGE[loc2] || loc2) + '</td>' +
+        '<td>' + dateStr + '</td>' +
+        '<td>' + dayStr + '</td>' +
+        '<td>' + locBadgeHtml + '</td>' +
         '<td style="text-align:right;font-weight:600;">' +
           (isOff ? '\u2014' : fmtN(hrs2) + ' hrs') +
         '</td>';
