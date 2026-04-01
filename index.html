@@ -1088,7 +1088,7 @@
   // custom range mode (YYYY-MM-DD string keys)
   // ─────────────────────────────────────
   function recalc() {
-    var g1 = 0, g2 = 0, g3 = 0;
+    var g1 = 0, g2 = 0, g3 = 0, custom = 0;
     var keys = getRowKeys();
     for (var i = 0; i < keys.length; i++) {
       var key   = keys[i];
@@ -1107,13 +1107,13 @@
         if (effectiveLoc === 'G1') g1 += hrs;
         else if (effectiveLoc === 'G2') g2 += hrs;
         else if (effectiveLoc === 'G3') g3 += hrs;
-        // Custom locations don't add to G1/G2/G3 totals
+        else custom += hrs; // Custom location hours count toward overall total
       }
     }
     document.getElementById('totG1').textContent  = fmtN(g1);
     document.getElementById('totG2').textContent  = fmtN(g2);
     document.getElementById('totG3').textContent  = fmtN(g3);
-    document.getElementById('totAll').textContent = fmtN(g1 + g2 + g3);
+    document.getElementById('totAll').textContent = fmtN(g1 + g2 + g3 + custom);
   }
 
   // Returns the list of row keys currently in the table
