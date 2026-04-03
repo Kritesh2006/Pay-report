@@ -264,10 +264,11 @@
   /* ── Totals summary ── */
   .totals-row {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(5, 1fr);
     gap: 10px;
   }
-  @media (max-width: 520px) { .totals-row { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 640px) { .totals-row { grid-template-columns: repeat(3, 1fr); } }
+  @media (max-width: 400px) { .totals-row { grid-template-columns: repeat(2, 1fr); } }
 
   .tot-box {
     border-radius: var(--rad-sm);
@@ -278,6 +279,7 @@
   .tot-box.g1  { background: var(--g1bg); border-color: #c3d4f9; }
   .tot-box.g2  { background: var(--g2bg); border-color: #a7d7c5; }
   .tot-box.g3  { background: var(--g3bg); border-color: #fcd98a; }
+  .tot-box.custom { background: #f3f0ff; border-color: #d4bbfc; }
   .tot-box.all { background: #f0f2f5;      border-color: #d1d5db; }
 
   .tot-lbl {
@@ -290,6 +292,7 @@
   .g1 .tot-lbl  { color: var(--g1c); }
   .g2 .tot-lbl  { color: var(--g2c); }
   .g3 .tot-lbl  { color: var(--g3c); }
+  .custom .tot-lbl { color: #7c3aed; }
   .all .tot-lbl { color: var(--txt2); }
 
   .tot-val {
@@ -301,6 +304,7 @@
   .g1 .tot-val  { color: var(--g1c); }
   .g2 .tot-val  { color: var(--g2c); }
   .g3 .tot-val  { color: var(--g3c); }
+  .custom .tot-val { color: #7c3aed; }
   .all .tot-val { color: var(--txt); }
 
   .tot-unit { font-size: 10px; color: var(--txt3); margin-top: 2px; }
@@ -834,6 +838,11 @@
           <div class="tot-val" id="totG3">0</div>
           <div class="tot-unit">hours</div>
         </div>
+        <div class="tot-box custom">
+          <div class="tot-lbl">Custom</div>
+          <div class="tot-val" id="totCustom">0</div>
+          <div class="tot-unit">hours</div>
+        </div>
         <div class="tot-box all">
           <div class="tot-lbl">Total Hours</div>
           <div class="tot-val" id="totAll">0</div>
@@ -1110,10 +1119,11 @@
         else custom += hrs; // Custom location hours count toward overall total
       }
     }
-    document.getElementById('totG1').textContent  = fmtN(g1);
-    document.getElementById('totG2').textContent  = fmtN(g2);
-    document.getElementById('totG3').textContent  = fmtN(g3);
-    document.getElementById('totAll').textContent = fmtN(g1 + g2 + g3 + custom);
+    document.getElementById('totG1').textContent     = fmtN(g1);
+    document.getElementById('totG2').textContent     = fmtN(g2);
+    document.getElementById('totG3').textContent     = fmtN(g3);
+    document.getElementById('totCustom').textContent = fmtN(custom);
+    document.getElementById('totAll').textContent    = fmtN(g1 + g2 + g3 + custom);
   }
 
   // Returns the list of row keys currently in the table
@@ -1183,7 +1193,7 @@
     var tbody = document.getElementById('tsBody');
     tbody.innerHTML = '';
 
-    ['totG1','totG2','totG3','totAll'].forEach(function(id) {
+    ['totG1','totG2','totG3','totCustom','totAll'].forEach(function(id) {
       document.getElementById(id).textContent = '0';
     });
     document.getElementById('summarySection').style.display = 'none';
