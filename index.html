@@ -263,14 +263,13 @@
 
   /* ── Totals summary ── */
   .totals-row {
-    display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    display: flex;
+    flex-wrap: wrap;
     gap: 10px;
   }
-  @media (max-width: 640px) { .totals-row { grid-template-columns: repeat(3, 1fr); } }
-  @media (max-width: 400px) { .totals-row { grid-template-columns: repeat(2, 1fr); } }
-
   .tot-box {
+    flex: 1 1 100px;
+    min-width: 90px;
     border-radius: var(--rad-sm);
     padding: 13px 10px;
     text-align: center;
@@ -279,8 +278,17 @@
   .tot-box.g1  { background: var(--g1bg); border-color: #c3d4f9; }
   .tot-box.g2  { background: var(--g2bg); border-color: #a7d7c5; }
   .tot-box.g3  { background: var(--g3bg); border-color: #fcd98a; }
-  .tot-box.custom { background: #f3f0ff; border-color: #d4bbfc; }
-  .tot-box.all { background: #f0f2f5;      border-color: #d1d5db; }
+  .tot-box.all { background: #f0f2f5;     border-color: #d1d5db; }
+  /* Dynamic custom location boxes */
+  .tot-box.dyn {
+    background: #f3f0ff;
+    border-color: #d4bbfc;
+    animation: boxFadeIn .3s ease;
+  }
+  @keyframes boxFadeIn {
+    from { opacity: 0; transform: scale(.92); }
+    to   { opacity: 1; transform: scale(1); }
+  }
 
   .tot-lbl {
     font-size: 10px;
@@ -292,7 +300,7 @@
   .g1 .tot-lbl  { color: var(--g1c); }
   .g2 .tot-lbl  { color: var(--g2c); }
   .g3 .tot-lbl  { color: var(--g3c); }
-  .custom .tot-lbl { color: #7c3aed; }
+  .dyn .tot-lbl { color: #7c3aed; }
   .all .tot-lbl { color: var(--txt2); }
 
   .tot-val {
@@ -304,10 +312,81 @@
   .g1 .tot-val  { color: var(--g1c); }
   .g2 .tot-val  { color: var(--g2c); }
   .g3 .tot-val  { color: var(--g3c); }
-  .custom .tot-val { color: #7c3aed; }
+  .dyn .tot-val { color: #7c3aed; }
   .all .tot-val { color: var(--txt); }
 
   .tot-unit { font-size: 10px; color: var(--txt3); margin-top: 2px; }
+
+  /* ── Loading overlay ── */
+  #loadingOverlay {
+    position: fixed;
+    inset: 0;
+    background: #0d0f14;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    transition: opacity .5s ease;
+  }
+  #loadingOverlay.fade-out {
+    opacity: 0;
+    pointer-events: none;
+  }
+  .ol-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 40px;
+  }
+  .ol-brand-icon {
+    width: 36px; height: 36px;
+    background: var(--accent);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .ol-brand-icon svg { width: 18px; height: 18px; }
+  .ol-brand-name {
+    font-size: 18px;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: -0.3px;
+  }
+  .ol-brand-name span { opacity: 0.5; font-weight: 400; }
+  .ol-lines {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    min-height: 100px;
+  }
+  .ol-line {
+    font-size: 13px;
+    font-weight: 500;
+    color: rgba(255,255,255,0);
+    letter-spacing: 0.3px;
+    transition: color .4s ease, opacity .4s ease;
+    font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  }
+  .ol-line.visible { color: rgba(255,255,255,0.75); }
+  .ol-line.active  { color: #fff; }
+  .ol-line.done    { color: rgba(255,255,255,0.3); }
+  .ol-bar-wrap {
+    margin-top: 36px;
+    width: 160px;
+    height: 2px;
+    background: rgba(255,255,255,.1);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .ol-bar {
+    height: 100%;
+    width: 0%;
+    background: var(--accent);
+    border-radius: 2px;
+    transition: width .35s ease;
+  }
 
   /* ── Timesheet table ── */
   .ts-table {
@@ -713,6 +792,27 @@
 </head>
 <body>
 
+<!-- ═══════ LOADING OVERLAY ═══════ -->
+<div id="loadingOverlay">
+  <div class="ol-brand">
+    <div class="ol-brand-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+      </svg>
+    </div>
+    <div class="ol-brand-name">iFix<span>andRepair</span></div>
+  </div>
+  <div class="ol-lines">
+    <div class="ol-line" id="ol1">Redirecting...</div>
+    <div class="ol-line" id="ol2">RonServer &bull; Session Initialized</div>
+    <div class="ol-line" id="ol3">Preparing your workspace...</div>
+    <div class="ol-line" id="ol4">Welcome back</div>
+  </div>
+  <div class="ol-bar-wrap">
+    <div class="ol-bar" id="olBar"></div>
+  </div>
+</div>
+
 <div id="appContent">
 <!-- ═══════ HEADER ═══════ -->
 <header class="header">
@@ -822,7 +922,7 @@
       <h2>Live Hours Summary</h2>
     </div>
     <div class="card-body">
-      <div class="totals-row">
+      <div class="totals-row" id="totalsRow">
         <div class="tot-box g1">
           <div class="tot-lbl">G1 Store</div>
           <div class="tot-val" id="totG1">0</div>
@@ -838,12 +938,8 @@
           <div class="tot-val" id="totG3">0</div>
           <div class="tot-unit">hours</div>
         </div>
-        <div class="tot-box custom">
-          <div class="tot-lbl">Custom</div>
-          <div class="tot-val" id="totCustom">0</div>
-          <div class="tot-unit">hours</div>
-        </div>
-        <div class="tot-box all">
+        <!-- Dynamic custom location boxes injected here by JS -->
+        <div class="tot-box all" id="totAllBox">
           <div class="tot-lbl">Total Hours</div>
           <div class="tot-val" id="totAll">0</div>
           <div class="tot-unit">hours</div>
@@ -966,6 +1062,49 @@
 </div><!-- /page -->
 
 <script>
+// ═══════════════════════════════════════════════════
+//  LOADING OVERLAY  (max 4 seconds total)
+// ═══════════════════════════════════════════════════
+(function () {
+  var overlay = document.getElementById('loadingOverlay');
+  var bar     = document.getElementById('olBar');
+  var lines   = ['ol1','ol2','ol3','ol4'];
+  var steps   = [
+    { id:'ol1', bar: 25,  delay: 0    },
+    { id:'ol2', bar: 55,  delay: 1200 },
+    { id:'ol3', bar: 78,  delay: 2800 },
+    { id:'ol4', bar: 100, delay: 4500 },
+  ];
+
+  steps.forEach(function(step) {
+    setTimeout(function() {
+      // Mark previous lines as done
+      lines.forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el.classList.contains('active')) {
+          el.classList.remove('active');
+          el.classList.add('done');
+        }
+      });
+      var el = document.getElementById(step.id);
+      el.classList.add('visible', 'active');
+      bar.style.width = step.bar + '%';
+    }, step.delay);
+  });
+
+  // Fade out at 5.5s, fully gone by 6s
+  setTimeout(function() {
+    overlay.classList.add('fade-out');
+    setTimeout(function() {
+      overlay.style.display = 'none';
+    }, 520);
+  }, 5500);
+})();
+
+
+// ═══════════════════════════════════════════════════
+//  TIMESHEET LOGIC
+// ═══════════════════════════════════════════════════
 (function () {
 
   // ─────────────────────────────────────
@@ -988,17 +1127,63 @@
   var selYear      = todayYear;
   var activePeriod = (todayDay <= 15) ? 1 : 2;
 
-  // Custom date range state
-  // useCustomRange = true means rows are driven by customStart/customEnd
   var useCustomRange = false;
-  var customStart    = null;  // Date object
-  var customEnd      = null;  // Date object
+  var customStart    = null;
+  var customEnd      = null;
 
-  // Derived — used by buildRows, recalc, submit
-  // In custom range mode these hold absolute Date objects;
-  // in normal mode they're computed from selMonth/selYear/activePeriod
   var startDay, endDay, label;
-  // In custom range mode we iterate differently — see buildRows
+
+  // ─────────────────────────────────────
+  // Dynamic custom location boxes
+  // Map: normalised name → { box element, val element }
+  // ─────────────────────────────────────
+  var dynBoxes = {}; // key: lowercase name
+
+  function normLoc(name) {
+    return name.trim().toLowerCase();
+  }
+
+  // Capitalise first letter of each word for display
+  function titleCase(str) {
+    return str.trim().replace(/\w\S*/g, function(w) {
+      return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+    });
+  }
+
+  // Get or create a dynamic summary box for a custom location name.
+  // Always inserts BEFORE the "Total Hours" box.
+  function getOrCreateDynBox(name) {
+    var key = normLoc(name);
+    if (dynBoxes[key]) return dynBoxes[key];
+
+    var display  = titleCase(name) + ' Store';
+    var valId    = 'totDyn_' + key.replace(/[^a-z0-9]/g,'_');
+
+    var box = document.createElement('div');
+    box.className   = 'tot-box dyn';
+    box.dataset.key = key;
+    box.innerHTML =
+      '<div class="tot-lbl">' + display + '</div>' +
+      '<div class="tot-val" id="' + valId + '">0</div>' +
+      '<div class="tot-unit">hours</div>';
+
+    // Insert before the "Total Hours" box
+    var allBox = document.getElementById('totAllBox');
+    allBox.parentNode.insertBefore(box, allBox);
+
+    dynBoxes[key] = { box: box, valId: valId };
+    return dynBoxes[key];
+  }
+
+  // Remove all dynamic boxes whose key is not in keepSet
+  function pruneDynBoxes(keepSet) {
+    Object.keys(dynBoxes).forEach(function(key) {
+      if (!keepSet[key]) {
+        dynBoxes[key].box.parentNode.removeChild(dynBoxes[key].box);
+        delete dynBoxes[key];
+      }
+    });
+  }
 
   // ─────────────────────────────────────
   // Populate year dropdown
@@ -1035,9 +1220,6 @@
     label = MONTHS[selMonth] + ' ' + startDay + '\u2013' + endDay + ', ' + selYear;
   }
 
-  // ─────────────────────────────────────
-  // Update all UI labels
-  // ─────────────────────────────────────
   function updateLabels() {
     document.getElementById('hdrPeriod').textContent     = label;
     document.getElementById('periodDisplay').textContent = label;
@@ -1055,7 +1237,6 @@
     return (n % 1 === 0) ? String(n) : n.toFixed(1);
   }
 
-  // Returns a YYYY-MM-DD string from a Date (local time)
   function toYMD(dt) {
     var y = dt.getFullYear();
     var m = String(dt.getMonth() + 1).padStart(2, '0');
@@ -1064,7 +1245,6 @@
   }
 
   // Returns the effective location string for a row.
-  // If the loc select is "Custom", reads the custom-loc text input.
   function getRowLocation(key) {
     var locEl = document.getElementById('loc-' + key);
     if (!locEl) return '';
@@ -1072,7 +1252,7 @@
     if (val === 'Custom') {
       var custEl = document.getElementById('cloc-' + key);
       var typed  = custEl ? custEl.value.trim() : '';
-      return typed || 'Custom';
+      return typed || '';   // empty string if nothing typed yet
     }
     return val;
   }
@@ -1093,42 +1273,67 @@
 
   // ─────────────────────────────────────
   // recalc — live totals
-  // Works for both normal mode (numeric keys) and
-  // custom range mode (YYYY-MM-DD string keys)
+  // Handles dynamic custom location boxes
   // ─────────────────────────────────────
   function recalc() {
-    var g1 = 0, g2 = 0, g3 = 0, custom = 0;
+    var g1 = 0, g2 = 0, g3 = 0;
+    var dynTotals = {};   // normalised name → hours
+    var usedKeys  = {};   // normalised name → true (for pruning)
+
     var keys = getRowKeys();
     for (var i = 0; i < keys.length; i++) {
       var key   = keys[i];
       var locEl = document.getElementById('loc-' + key);
       var cell  = document.getElementById('rh-' + key);
       if (!locEl || !cell) continue;
-      var loc = locEl.value;  // raw dropdown value for Off check
-      var hrs = getRowHours(key);
-      if (loc === 'Off') {
+
+      var rawLoc = locEl.value;
+      var hrs    = getRowHours(key);
+
+      if (rawLoc === 'Off') {
         cell.textContent = '\u2014';
         cell.className   = 'row-hrs off';
-      } else {
-        cell.textContent = fmtN(hrs);
-        cell.className   = 'row-hrs has';
-        var effectiveLoc = getRowLocation(key);
-        if (effectiveLoc === 'G1') g1 += hrs;
-        else if (effectiveLoc === 'G2') g2 += hrs;
-        else if (effectiveLoc === 'G3') g3 += hrs;
-        else custom += hrs; // Custom location hours count toward overall total
+        continue;
       }
+
+      cell.textContent = fmtN(hrs);
+      cell.className   = 'row-hrs has';
+
+      var effLoc = getRowLocation(key);
+
+      if (effLoc === 'G1')      { g1 += hrs; }
+      else if (effLoc === 'G2') { g2 += hrs; }
+      else if (effLoc === 'G3') { g3 += hrs; }
+      else if (effLoc) {
+        // Named custom location
+        var nk = normLoc(effLoc);
+        dynTotals[nk] = (dynTotals[nk] || 0) + hrs;
+        usedKeys[nk]  = effLoc;   // store original casing for display
+      }
+      // Empty custom (nothing typed yet) — not counted anywhere
     }
-    document.getElementById('totG1').textContent     = fmtN(g1);
-    document.getElementById('totG2').textContent     = fmtN(g2);
-    document.getElementById('totG3').textContent     = fmtN(g3);
-    document.getElementById('totCustom').textContent = fmtN(custom);
-    document.getElementById('totAll').textContent    = fmtN(g1 + g2 + g3 + custom);
+
+    // Update fixed boxes
+    document.getElementById('totG1').textContent = fmtN(g1);
+    document.getElementById('totG2').textContent = fmtN(g2);
+    document.getElementById('totG3').textContent = fmtN(g3);
+
+    // Remove boxes for locations no longer in use
+    pruneDynBoxes(dynTotals);
+
+    // Create / update dynamic boxes
+    var dynTotal = 0;
+    Object.keys(dynTotals).forEach(function(nk) {
+      var hrs2    = dynTotals[nk];
+      var rawName = usedKeys[nk];
+      var entry   = getOrCreateDynBox(rawName);
+      document.getElementById(entry.valId).textContent = fmtN(hrs2);
+      dynTotal += hrs2;
+    });
+
+    document.getElementById('totAll').textContent = fmtN(g1 + g2 + g3 + dynTotal);
   }
 
-  // Returns the list of row keys currently in the table
-  // Normal mode: numbers [startDay .. endDay]
-  // Custom range mode: YYYY-MM-DD strings
   function getRowKeys() {
     var keys = [];
     if (useCustomRange && customStart && customEnd) {
@@ -1144,7 +1349,7 @@
   }
 
   // ─────────────────────────────────────
-  // onRowChange — handles Off/Custom hours/Custom loc
+  // onRowChange
   // ─────────────────────────────────────
   function onRowChange(key) {
     var locEl  = document.getElementById('loc-' + key);
@@ -1155,7 +1360,6 @@
     var loc    = locEl.value;
     var hrs    = hrsEl.value;
 
-    // Handle Off state
     if (loc === 'Off') {
       row.classList.add('row-off');
       hrsEl.disabled      = true;
@@ -1176,7 +1380,6 @@
       }
     }
 
-    // Handle Custom location
     if (clocEl) {
       clocEl.style.display = (loc === 'Custom') ? 'inline-block' : 'none';
       if (loc === 'Custom') clocEl.focus();
@@ -1186,33 +1389,34 @@
   }
 
   // ─────────────────────────────────────
-  // buildRows — generates table rows
-  // Handles both normal and custom range modes
+  // buildRows
   // ─────────────────────────────────────
   function buildRows() {
     var tbody = document.getElementById('tsBody');
     tbody.innerHTML = '';
 
-    ['totG1','totG2','totG3','totCustom','totAll'].forEach(function(id) {
+    // Reset fixed totals
+    ['totG1','totG2','totG3','totAll'].forEach(function(id) {
       document.getElementById(id).textContent = '0';
     });
+    // Remove all dynamic boxes
+    pruneDynBoxes({});
+    dynBoxes = {};
+
     document.getElementById('summarySection').style.display = 'none';
 
     var keys = getRowKeys();
-
     for (var i = 0; i < keys.length; i++) {
       var key = keys[i];
       var dt, mmdd, dowFull;
 
       if (useCustomRange) {
-        // key is YYYY-MM-DD
         var parts = key.split('-');
         dt      = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
         var mon = MONTHS[dt.getMonth()].slice(0, 3);
         mmdd    = mon + ' ' + dt.getDate();
         dowFull = DAYS[dt.getDay()];
       } else {
-        // key is day number
         dt      = new Date(selYear, selMonth, key);
         mmdd    = MONTHS[selMonth].slice(0, 3) + ' ' + key;
         dowFull = DAYS[dt.getDay()];
@@ -1258,7 +1462,6 @@
 
       tbody.appendChild(tr);
 
-      // Attach listeners — closure captures key
       (function(k) {
         document.getElementById('loc-' + k).addEventListener('change',  function() { onRowChange(k); });
         document.getElementById('hrs-' + k).addEventListener('change',  function() { onRowChange(k); });
@@ -1280,9 +1483,6 @@
     buildRows();
   }
 
-  // ─────────────────────────────────────
-  // Public handlers — normal mode
-  // ─────────────────────────────────────
   window.onPeriodChange = function () {
     selMonth = parseInt(document.getElementById('selMonth').value, 10);
     selYear  = parseInt(document.getElementById('selYear').value, 10);
@@ -1300,19 +1500,14 @@
   // ─────────────────────────────────────
   window.onCustomRangeToggle = function () {
     useCustomRange = document.getElementById('useCustomRange').checked;
-
-    // Grey out / enable the normal selectors
     var normalEls = ['selMonth', 'selYear', 'ppBtn1', 'ppBtn2'];
     normalEls.forEach(function(id) {
       var el = document.getElementById(id);
       if (el) el.disabled = useCustomRange;
     });
-
-    // Show/hide date fields
     var fields = document.getElementById('customRangeFields');
     if (useCustomRange) {
       fields.classList.add('visible');
-      // Default start/end to today
       var todayStr = toYMD(today);
       if (!document.getElementById('customStartDate').value)
         document.getElementById('customStartDate').value = todayStr;
@@ -1324,7 +1519,7 @@
       customStart = null;
       customEnd   = null;
       document.getElementById('dateRangeErr').classList.remove('on');
-      refresh();  // revert to normal mode
+      refresh();
     }
   };
 
@@ -1332,31 +1527,20 @@
     var startVal = document.getElementById('customStartDate').value;
     var endVal   = document.getElementById('customEndDate').value;
     var errEl    = document.getElementById('dateRangeErr');
-
     if (!startVal || !endVal) return;
-
     var parts1 = startVal.split('-');
     var parts2 = endVal.split('-');
     var s = new Date(parseInt(parts1[0]), parseInt(parts1[1]) - 1, parseInt(parts1[2]));
     var e = new Date(parseInt(parts2[0]), parseInt(parts2[1]) - 1, parseInt(parts2[2]));
-
-    if (e < s) {
-      errEl.classList.add('on');
-      return;
-    }
+    if (e < s) { errEl.classList.add('on'); return; }
     errEl.classList.remove('on');
-
     customStart = s;
     customEnd   = e;
-
-    // Build label for custom range
     var opts = { month: 'short', day: 'numeric', year: 'numeric' };
     label = s.toLocaleDateString('en-US', opts) + ' \u2013 ' + e.toLocaleDateString('en-US', opts);
-
     document.getElementById('hdrPeriod').textContent     = label;
     document.getElementById('periodDisplay').textContent = label;
     document.getElementById('tableHeading').textContent  = 'Daily Hours \u2014 ' + label;
-
     buildRows();
   };
 
@@ -1373,7 +1557,6 @@
   window.doSubmit = function () {
     var nameEl = document.getElementById('empName');
     var name   = nameEl.value.trim();
-
     if (!name) {
       nameEl.classList.add('err');
       document.getElementById('empErr').classList.add('on');
@@ -1402,7 +1585,6 @@
         month: 'short', day: 'numeric', year: 'numeric',
         hour: 'numeric', minute: '2-digit'
       });
-
     document.getElementById('sG1').textContent  = g1;
     document.getElementById('sG2').textContent  = g2;
     document.getElementById('sG3').textContent  = g3;
@@ -1413,7 +1595,7 @@
 
     var keys = getRowKeys();
     for (var i = 0; i < keys.length; i++) {
-      var key   = keys[i];
+      var key    = keys[i];
       var rawLoc = document.getElementById('loc-' + key).value;
       var effLoc = getRowLocation(key);
       var hrs2   = getRowHours(key);
@@ -1431,7 +1613,6 @@
         dayStr  = DAYS_S[dt2.getDay()];
       }
 
-      // Build location badge — custom locations shown as plain text badge
       var locBadgeHtml;
       if (isOff) {
         locBadgeHtml = '<span class="loc-badge badge-off">Off</span>';
@@ -1442,7 +1623,8 @@
       } else if (effLoc === 'G3') {
         locBadgeHtml = '<span class="loc-badge badge-g3">G3</span>';
       } else {
-        locBadgeHtml = '<span class="loc-badge" style="background:var(--surface2);color:var(--txt2);border:1px solid var(--border);">' + effLoc + '</span>';
+        var dispName = effLoc ? titleCase(effLoc) : 'Custom';
+        locBadgeHtml = '<span class="loc-badge" style="background:#f3f0ff;color:#7c3aed;border:1px solid #d4bbfc;">' + dispName + '</span>';
       }
 
       var tr2 = document.createElement('tr');
@@ -1468,10 +1650,10 @@
   window.copyText = function () {
     var name   = document.getElementById('sEmp').textContent;
     var period = document.getElementById('sPeriod').textContent;
-    var g1v    = document.getElementById('sG1').textContent;
-    var g2v    = document.getElementById('sG2').textContent;
-    var g3v    = document.getElementById('sG3').textContent;
-    var allv   = document.getElementById('sAll').textContent;
+    var g1v    = document.getElementById('totG1').textContent;
+    var g2v    = document.getElementById('totG2').textContent;
+    var g3v    = document.getElementById('totG3').textContent;
+    var allv   = document.getElementById('totAll').textContent;
 
     var lines = [
       'iFixandRepair \u2014 Employee Timesheet',
@@ -1504,7 +1686,6 @@
       btn.textContent = 'Copied!';
       setTimeout(function () { btn.textContent = 'Copy Text'; }, 2000);
     }
-
     function fallback() {
       var ta = document.createElement('textarea');
       ta.value = txt;
@@ -1516,7 +1697,6 @@
       document.body.removeChild(ta);
       afterCopy();
     }
-
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(txt).then(afterCopy).catch(fallback);
     } else {
